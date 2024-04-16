@@ -38,7 +38,7 @@ pub const Anims = struct {
 };
 
 pub const Texs = struct {
-    pub var space:             rl.Texture2D = undefined;
+    pub var space:          rl.Texture2D = undefined;
     
     pub var fighter:        rl.Texture2D = undefined;
     pub var bullet:         rl.Texture2D = undefined;
@@ -54,6 +54,8 @@ pub const Texs = struct {
     pub var gem_3:          rl.Texture2D = undefined;
 
     pub var block:          rl.Texture2D = undefined;
+    pub var water:          rl.Texture2D = undefined;
+    pub var weapon_1:       rl.Texture2D = undefined;
     pub fn load() void {
         const info = @typeInfo(Texs).Struct;
         inline for (info.decls) |d| {

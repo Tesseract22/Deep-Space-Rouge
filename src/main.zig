@@ -26,11 +26,10 @@ var cameraAni: ?f32 = null;
 
 const Player = struct {
 	mover: Mover = .{
-		.spd_decay_b = 0, 
-		.turn_spd_decay_b = 0.75, 
-		.acc_rate_b = 10, 
-		.acc_rate_m = 1,
-		.max_turn_spd_b = 360},
+		.spd_decay_b = 1.5, 
+		.turn_spd_decay_b = 12.5, 
+		.acc_rate_b = 3.5, 
+		.max_turn_spd_b = 250},
 	fire_rate: f32 = 10,
 	prev_fire: f64 = 0,
 	mass: f32 = 1,
@@ -364,10 +363,6 @@ const Mover = struct {
 	}
 	pub fn foward(m: *Mover) void {
 		m.spd += v2rot(up, m.turn) * splat(dt * m.acc_rate_b * m.acc_rate_m);
-		const l = v2len(m.spd);
-		_ = l; // autofix
-
-		// m.spd *= splat(1 - (1 - (0.1)) * dt);
 	}
 	pub fn move(m: *Mover) void {
 		m.turn += m.turn_spd * dt;
@@ -622,21 +617,73 @@ fn playAnim(anim: *Animation) void {
 	a.valid = true;
 
 }
-
+const bw = 5;
+const bh = 5;
+const blk_size = srl2sizen(.{.x = 32 * pixelMul, .y =32 * pixelMul});
+var Inventory = [_][bw]?*Item{[_]?*Item{null} ** bw} ** bh;
+var selected_item: ?*Item = null;
+fn DrawItem(item: Item, pos: Vec2) void {
+	//  q	
+	const spos = coordn2srl(pos - blk_size / splat(2));
+	rl.DrawTextureEx(item.tex.*, spos, 0, pixelMul, rl.WHITE);
+}
+fn checkItemBound(bc: @Vector(2, u8)) bool {
+	return bc[0] >= 0 and bc[1] >= 0 and bc[0] < bw and bc[1] < bh;
+}
+fn checkItemOccupied(bc: @Vector(2, u8)) bool {
+	return Inventory[bc[0]][bc[1]] == null;
+}
 fn DrawItemMenu() void {
-	const bw = 5;
-	const bh = 5;
+
 	const blk_tex = &Assets.Texs.block;
-	const blk_size = srl2sizen(MeasureTex(blk_tex.*)) ;
+	// darken the background
 	rl.DrawRectangle(9, 9, screenw, screenh, rl.Color {.r = 0, .b = 0, .g = 0, .a = 0x7f});
+	// draw the grid
 	for (0..bw) |x| {
 		const xf: f32 = @floatFromInt(x);
 		for (0..bh) |y| {
 			const yf: f32 = @floatFromInt(y);
-			DrawTexture(blk_tex.*, Vec2 {blk_size[0], blk_size[1]} * Vec2 {xf - 2.5, yf - 2.5}, null, 0);
+			const origin = blk_size * Vec2 {xf - (@as(f32, @floatFromInt(bw))-1)/2, yf - (@as(f32, @floatFromInt(bh))-1)/2};
+			DrawTexture(blk_tex.*, origin, null, 0);
+		}
+	}
+	// items come on top of grid
+	for (0..bw) |x| {
+		const xf: f32 = @floatFromInt(x);
+		for (0..bh) |y| {
+			const yf: f32 = @floatFromInt(y);
+			const origin = Vec2 {blk_size[0], blk_size[1]} * Vec2 {xf - (@as(f32, @floatFromInt(bw))-1)/2, yf - (@as(f32, @floatFromInt(bh))-1)/2};
+			if (Inventory[x][y]) |item| {
+				if (item.pos.?[0] == x and item.pos.?[1] == y) DrawItem(item.*, origin);
+			}
 
 		}
 	}
+	// draw the selected item
+
+	const mouse_sv = rl.GetMousePosition();
+	const mouse_v = srl2coord(mouse_sv);
+	if (selected_item) |si| {
+		DrawItem(si.*, mouse_v);
+		if (rl.IsMouseButtonPressed(rl.MOUSE_BUTTON_LEFT)) {
+		// translate from normalize coordinate to block coordinate, if possible
+			const bc: @Vector(2, u8) =  @intFromFloat(mouse_v / blk_size + splat(2.5));
+			for (si.shape) |shape_coord| {
+				const c = bc + (shape_coord orelse @Vector(2, u8) {0, 0});
+				if (!checkItemBound(c) or !checkItemOccupied(c)) {
+					break;
+				}
+			} else {
+				si.pos = bc;
+				for (si.shape) |shape_coord| {
+					const c = bc + (shape_coord orelse @Vector(2, u8) {0, 0});
+					Inventory[c[0]][c[1]] = si;
+				}
+			}
+		}
+
+	}
+
 }
 
 var enemies: [128]Enemy = [_]Enemy {Enemy {}} ** 128;
@@ -670,15 +717,15 @@ fn playDeadAnim(o: anytype) void {
 	}
 }
 
-
+fn MeasureTex(tex: rl.Texture2D) rl.Vector2 {
+	return .{.x = @as(f32, @floatFromInt(tex.width)) * pixelMul, .y = @as(f32, @floatFromInt(tex.height)) * pixelMul};
+}
 
 pub inline fn DrawTexture(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32) void {
 	DrawTextureTint(tex, origin, size, rot, rl.WHITE);
 	
 }
-fn MeasureTex(tex: rl.Texture2D) rl.Vector2 {
-	return .{.x = @as(f32, @floatFromInt(tex.width)) * pixelMul, .y = @as(f32, @floatFromInt(tex.height)) * pixelMul};
-}
+
 pub fn DrawTextureTint(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32, tint: rl.Color) void {
 	const pos = coordn2srl(origin);
 	const tw: f32 = @floatFromInt(tex.width);
@@ -690,19 +737,26 @@ pub fn DrawTextureTint(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32, t
 		dw = dest.x;
 		dh = dest.y;
 	} else {
-		dw = @as(f32, @floatFromInt(tex.width)) 	* pixelMul;
-		dh = @as(f32, @floatFromInt(tex.height)) 	* pixelMul;
+		dw = tw 	* pixelMul;
+		dh = th 	* pixelMul;
 	}
 	rl.DrawTexturePro(
 				tex, 
 				.{.x = 0, .y = 0, .width = tw, .height = th}, 
-				.{.x = pos.x, .y = pos.y, .width = dh, .height = dw},
+				.{.x = pos.x, .y = pos.y, .width = dw, .height = dh},
 						.{.x = dw/2, .y = dh/2},
 				rot / rl.PI * 180.0, tint);
 	if (debug)
 		rl.DrawCircleLinesV(pos, @max(dw, dh)/2, rl.RED); // debug
 	
 }
+
+const Item = struct {
+	shape: [5]?@Vector(2, u8) = .{.{0, 0}, null, null, null, null},
+	pos: ?[2]u8 = null,
+	// id: []const u8 = "unknown",
+	tex: *rl.Texture2D = undefined,
+};
 // var explode_anim: Animation = undefined;
 // var bullet_hit_anim: Animation = undefined;
 // var bullet_fire_tex: rl.Texture2D = undefined;
@@ -749,6 +803,7 @@ var dt: f32 = 0;
 var et: f64 = 0;
 
 var thrust_player = AnimationPlayer {.anim = &Assets.Anims.thrust, .spd = 2};
+var item_water = Item{.tex = &Assets.Texs.weapon_1};
 pub fn main() !void {
 	const c_alloc = std.heap.c_allocator;
 	rl.InitWindow(screenw, screenh, "Deep Space Rouge");
@@ -786,12 +841,17 @@ pub fn main() !void {
 			if (!player.dead) {
 
 				// const turn_acc 	 = TurnFromKey() * t * pm.turn_acc_rate;
-				pm.turn_spd 	 = TurnFromKey() * dt * pm.max_turn_spd_b;
-				pm.turn_spd  	*= 1 - (1 - pm.turn_spd_decay_b) * dt;
+				pm.turn_spd *= 1 - pm.turn_spd_decay_b * dt;
+				if (rl.IsKeyDown(rl.KEY_RIGHT)) {
+					pm.turn_spd =  1 * dt * pm.max_turn_spd_b;
 
-				if (rl.IsKeyPressed(rl.KEY_UP)) {
+				} else if (rl.IsKeyDown(rl.KEY_LEFT)) {
+					pm.turn_spd = -1 * dt * pm.max_turn_spd_b;
+				}
+
+				if (rl.IsKeyDown(rl.KEY_UP)) {
 					pm.foward();
-					DrawTexture(thrust_player.play(dt).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), player.size * splat(0.25), pm.turn);
+					DrawTexture(thrust_player.play(dt).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), null, pm.turn);
 
 				}
 				pm.move();
