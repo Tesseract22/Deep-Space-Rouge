@@ -44,8 +44,10 @@ const Player = struct {
 };
 
 var next_lvl_gems: usize = 100;
+var total_gems: usize = 0;
 
 var player: Player = .{};
+var paused: bool = false;
 
 
 
@@ -69,6 +71,9 @@ fn splat(i: f32) Vec2 {
 }
 fn coordn2srl(v: Vec2) rl.Vector2 {
 	return v2rl((v + splat(1.0)) * splat(0.5) * screenSizef + Vec2 {(screenwf - screenhf)/2, 0.0});
+}
+fn srl2sizen(v: rl.Vector2) Vec2 {
+	return  rl2v2(v) / screenSizef * splat(2);
 }
 fn srl2coord(v: rl.Vector2) Vec2 {
 	return (rl2v2(v) -  Vec2 {(screenwf - screenhf)/2, 0.0}) * splat(2) / screenSizef - splat(1.0);
@@ -333,13 +338,13 @@ const Mover = struct {
 	max_turn_spd_m:  f32 = 1,
 
 
-	pub fn turnToPos(m: *Mover, pos: Vec2, dt: f32) void {
+	pub fn turnToPos(m: *Mover, pos: Vec2) void {
 		const target_dir = pos - m.pos;
 		const target_dir_angle = 
 		@mod(std.math.acos(v2dot(up, target_dir) / v2len(target_dir)) * std.math.sign(v2cross(up, target_dir)), 2 * rl.PI);
-		return m.turnToDir(target_dir_angle, dt);
+		return m.turnToDir(target_dir_angle);
 	}
-	pub fn turnToDir(m: *Mover, dir: f32, dt: f32) void {
+	pub fn turnToDir(m: *Mover, dir: f32) void {
 		// v*t + 2*a*t*t
 		// std.log.debug("dir: {}", .{@as(isize, @intFromFloat(rad2deg(dir)))});
 		
@@ -356,14 +361,14 @@ const Mover = struct {
 			m.turn_spd = 0;
 		} 
 	}
-	pub fn foward(m: *Mover, dt: f32) void {
+	pub fn foward(m: *Mover) void {
 		m.spd += v2rot(up, m.turn) * splat(dt * m.acc_rate_b * m.acc_rate_m);
 		const l = v2len(m.spd);
 		_ = l; // autofix
 
 		// m.spd *= splat(1 - (1 - (0.1)) * dt);
 	}
-	pub fn move(m: *Mover, dt: f32) void {
+	pub fn move(m: *Mover) void {
 		m.turn += m.turn_spd * dt;
 		m.turn = @mod(m.turn, 2*rl.PI);
 		m.pos += m.spd * splat(dt);
@@ -416,7 +421,7 @@ const Enemy = struct {
 	ai: ?*const AiFn = null,
 
 	worth: usize = 0,
-	pub const AiFn = fn (*Enemy, f32, f64) void;
+	pub const AiFn = fn (*Enemy) void;
 
 	fn spawnHunter() void {
 		defer enemy_ct += 1;
@@ -433,7 +438,7 @@ const Enemy = struct {
 		e.valid = true;
 		e.weapon.fire_rate = 1;
 		e.weapon.shoot = struct {
-			pub fn impl(w: *Weapon, o: *anyopaque, et: f64) void {
+			pub fn impl(w: *Weapon, o: *anyopaque) void {
 				const enemy: *Enemy = @alignCast(@ptrCast(o));
 				if (et - w.prev_fire >= 1/w.fire_rate) {
 					w.prev_fire = et;
@@ -456,7 +461,7 @@ const Enemy = struct {
 			}
 		}.impl;
 		e.ai = struct {
-			pub fn impl(enemy: *Enemy, dt: f32, et: f64) void {
+			pub fn impl(enemy: *Enemy) void {
 				const m = &enemy.mover;
 				m.turnToPos(player.m.pos, dt);
 				m.foward(dt);
@@ -487,7 +492,7 @@ const Enemy = struct {
 		e.extra = .{.Charge = .Finding};
 		e.worth = 37;
 		e.ai = struct {
-			pub fn impl(enemy: *Enemy, dt: f32, et: f64) void {
+			pub fn impl(enemy: *Enemy) void {
 				_ = et; // autofix
 				const charge_state = &enemy.extra.Charge;
 				const m = &enemy.mover;
@@ -520,8 +525,8 @@ const Enemy = struct {
 					.Cooling => |*ct| {
 						m.acc_rate_m = 0.25;
 						m.max_turn_spd_m = 1;
-						m.turnToPos(pm.pos, dt);
-						m.move(dt);
+						m.turnToPos(pm.pos);
+						m.move();
 						ct.* += dt;
 						if (ct.* > ChargeState.cool_t) {
 							charge_state.* = .Finding;
@@ -530,9 +535,9 @@ const Enemy = struct {
 					}
 					
 				}
-				m.turnToPos(pm.pos, dt);
-				m.foward(dt);
-				m.move(dt);
+				m.turnToPos(pm.pos);
+				m.foward();
+				m.move();
 			}
 		}.impl;
 		
@@ -617,6 +622,22 @@ fn playAnim(anim: *Animation) void {
 
 }
 
+fn DrawItemMenu() void {
+	const bw = 5;
+	const bh = 5;
+	const blk_tex = &Assets.Texs.block;
+	const blk_size = srl2sizen(MeasureTex(blk_tex.*)) ;
+	rl.DrawRectangle(9, 9, screenw, screenh, rl.Color {.r = 0, .b = 0, .g = 0, .a = 0x7f});
+	for (0..bw) |x| {
+		const xf: f32 = @floatFromInt(x);
+		for (0..bh) |y| {
+			const yf: f32 = @floatFromInt(y);
+			DrawTexture(blk_tex.*, Vec2 {blk_size[0], blk_size[1]} * Vec2 {xf - 2.5, yf - 2.5}, null, 0);
+
+		}
+	}
+}
+
 var enemies: [128]Enemy = [_]Enemy {Enemy {}} ** 128;
 var enemy_ct: usize = 0;
 
@@ -637,7 +658,7 @@ var gems: [64]Gem = [_]Gem {Gem {}} ** 64;
 var gem_ct: usize = 0;
 
 
-fn playDeadAnim(o: anytype, dt: f32) void {
+fn playDeadAnim(o: anytype) void {
 	std.debug.assert(o.valid and o.dead);
 	const ap: *AnimationPlayer = &o.dead_player;
 	const m: Mover = o.mover;
@@ -654,7 +675,9 @@ pub inline fn DrawTexture(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32
 	DrawTextureTint(tex, origin, size, rot, rl.WHITE);
 	
 }
-
+fn MeasureTex(tex: rl.Texture2D) rl.Vector2 {
+	return .{.x = @as(f32, @floatFromInt(tex.width)) * pixelMul, .y = @as(f32, @floatFromInt(tex.height)) * pixelMul};
+}
 pub fn DrawTextureTint(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32, tint: rl.Color) void {
 	const pos = coordn2srl(origin);
 	const tw: f32 = @floatFromInt(tex.width);
@@ -721,11 +744,13 @@ pub fn DrawRestart() void {
 	rl.DrawText("Restart", @as(c_int, @intFromFloat(pos.x)) - @divTrunc(text_size, 2), @intFromFloat(pos.y), 15, rl.WHITE) ;
 }
 
+var dt: f32 = 0;
+var et: f64 = 0;
 
 var thrust_player = AnimationPlayer {.anim = &Assets.Anims.thrust, .spd = 2};
 pub fn main() !void {
 	const c_alloc = std.heap.c_allocator;
-	rl.InitWindow(screenw, screenh, "My Window Name");
+	rl.InitWindow(screenw, screenh, "Deep Space Rouge");
 	rl.SetTargetFPS(144);
 	rl.SetTraceLogLevel(rl.LOG_ERROR);
 	defer rl.CloseWindow();
@@ -735,13 +760,24 @@ pub fn main() !void {
 	while (!rl.WindowShouldClose()) {
 		var aa = std.heap.ArenaAllocator.init(c_alloc);
 		defer aa.deinit();
-		const t = rl.GetFrameTime();
-		const et = rl.GetTime();
+		if (!paused) {
+			dt = rl.GetFrameTime();
+			et = rl.GetTime();
+		} else {
+			dt = 0;
+		}
+
 		// std.log.debug("t: {}", .{t});
 		var pm = &player.mover;
 		rl.BeginDrawing();
 		{
-			rl.ClearBackground(BgColor);
+			// rl.ClearBackground(BgColor);
+			const space_tex = &Assets.Texs.space;
+			rl.DrawTexturePro(space_tex.*, 
+				.{.x = 0, .y = 0, .width = @floatFromInt(space_tex.width) , .height = @floatFromInt(space_tex.height) }, 
+				.{.x = 0, .y = 0, .width = screenw, .height = screenh}, 
+				.{.x = 0, .y = 0}, 0, 
+				.{.r = 0x9f, .g = 0x9f, .b = 0x9f, .a = 0xff});
 			player.dead = player.dead or player.hp <= 0;
 			if (rl.IsKeyPressed(rl.KEY_R)) {
 				player = Player {};
@@ -749,20 +785,20 @@ pub fn main() !void {
 			if (!player.dead) {
 
 				// const turn_acc 	 = TurnFromKey() * t * pm.turn_acc_rate;
-				pm.turn_spd 	 = TurnFromKey() * t * pm.max_turn_spd_b;
-				pm.turn_spd  	*= 1 - (1 - pm.turn_spd_decay_b) * t;
+				pm.turn_spd 	 = TurnFromKey() * dt * pm.max_turn_spd_b;
+				pm.turn_spd  	*= 1 - (1 - pm.turn_spd_decay_b) * dt;
 
 				const move_dir = DirFromKey();
-				const acc	   	= v2rot(move_dir, pm.turn) * splat(t * pm.acc_rate_b);
+				const acc	   	= v2rot(move_dir, pm.turn) * splat(dt * pm.acc_rate_b);
 
-				pm.spd 		+= acc * splat(t);
-				pm.spd 		*= splat(1 - pm.spd_decay_b * pm.spd_decay_m * t);
-				pm.move(t);
+				pm.spd 		+= acc * splat(dt);
+				pm.spd 		*= splat(1 - pm.spd_decay_b * pm.spd_decay_m * dt);
+				pm.move();
 				pm.pos  	 = roundAbout(pm.pos);
 
 				DrawTexture(Assets.Texs.fighter, pm.pos, null, pm.turn);
 				if (!v2eq0(move_dir)) {
-					DrawTexture(thrust_player.play(t).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), player.size * splat(0.25), pm.turn);
+					DrawTexture(thrust_player.play(dt).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), player.size * splat(0.25), pm.turn);
 				}
 				if (rl.IsKeyDown(rl.KEY_SPACE) and et - player.prev_fire >= 1/player.fire_rate) {
 					player.prev_fire = et;
@@ -774,10 +810,12 @@ pub fn main() !void {
 				}
 				if (rl.IsKeyPressed(rl.KEY_S)) {
 					Enemy.spawnCrasher();
-	
 				}
 				if (rl.IsKeyPressed(rl.KEY_D)) {
 					debug = !debug;
+				}
+				if (rl.IsKeyPressed(rl.KEY_I)) {
+					paused = !paused;
 				}
 				if (rl.IsKeyPressed(rl.KEY_LEFT_SHIFT)) {
 					const mouse_pos = rl.GetMousePosition();
@@ -797,10 +835,10 @@ pub fn main() !void {
 				if (!b.valid) continue;
 
 				if (b.dead) {
-					playDeadAnim(b, t);
+					playDeadAnim(b);
 				} else {
 					const m = &b.mover;
-					m.move(t);
+					m.move();
 					DrawTexture(b.tex.?.*, m.pos, null, m.turn);
 
 				}
@@ -810,11 +848,11 @@ pub fn main() !void {
 				if (!b.valid) continue;
 
 				if (b.dead) {
-					playDeadAnim(b, t);
+					playDeadAnim(b);
 				} else {
 					testHit(b, &player, .Player);
 					const m = &b.mover;
-					m.move(t);
+					m.move();
 					DrawTexture(b.tex.?.*, m.pos, null, m.turn);
 				}
 
@@ -826,9 +864,9 @@ pub fn main() !void {
 				if (a.hp <= 0) a.dead = true;
 				const m = &a.mover;
 				testCollide(a, &player, true);
-				m.move(t);
+				m.move();
 				if (a.dead) {
-					playDeadAnim(a, t);
+					playDeadAnim(a);
 				} else {
 					const tex = a.tex.?;
 					DrawTexture(tex.*, m.pos, a.size, m.turn);
@@ -844,6 +882,7 @@ pub fn main() !void {
 				if (e.hp <= 0) {
 					if (!e.dead) {
 						Gem.spawnGem(e.worth, m.pos);
+						rl.PlaySound(Assets.Sounds.explode_1);
 					}
 					e.dead = true;
 				}
@@ -851,7 +890,7 @@ pub fn main() !void {
 				const hole_rot = m.turn + rl.PI / 2;
 				const hole_pos = m.pos + v2rot(.{0.15, 0}, hole_rot);
 				if (!e.warmhole_player.isLast()) {
-					const worm_tex = e.warmhole_player.play(t);
+					const worm_tex = e.warmhole_player.play(dt);
 					DrawTexture(worm_tex.*, hole_pos, null, hole_rot);
 					if (e.warmhole_player.curr_frame >= 16 ) {
 						const ratio = @as(f32,@floatFromInt(e.warmhole_player.curr_frame)) / @as(f32,@floatFromInt(e.warmhole_player.anim.frames.items.len));
@@ -867,14 +906,14 @@ pub fn main() !void {
 
 				if (e.dead) {
 					if (!e.explode_player.isLast()) {
-						DrawTexture(e.explode_player.play(t).*, m.pos, null, m.turn);
+						DrawTexture(e.explode_player.play(dt).*, m.pos, null, m.turn);
 					} else {
 						e.tex = null;
 						e.valid = false;
 					}
 				} else {
 					testCollide(e, &player, true);
-					if (e.ai) |ai| ai(e, t, et);
+					if (e.ai) |ai| ai(e);
 					DrawTexture(tex.*, m.pos, null, m.turn);
 				}
 				
@@ -898,9 +937,9 @@ pub fn main() !void {
 					
 				}
 				if (dist < 0.4) {
-					gm.spd += v2n(pm.pos - gm.pos) * splat(gm.acc_rate_b * gm.acc_rate_m * t);
+					gm.spd += v2n(pm.pos - gm.pos) * splat(gm.acc_rate_b * gm.acc_rate_m * dt);
 				}
-				gm.move(t);
+				gm.move();
 				gm.pos = roundAbout(gm.pos);
 				DrawTexture(Gem.Texs[g.lvl].*, gm.pos, null, gm.turn);
 			}
@@ -916,9 +955,9 @@ pub fn main() !void {
 			// 	const tex = a.play(t);
 
 			// }
+			if (paused) DrawItemMenu();
 			DrawHUD();
 			if (player.dead) DrawRestart();
-
 			const dir = v2rot(up, pm.turn);
 			if (debug)
 				rl.DrawLineV(coordn2srl(pm.pos), coordn2srl(pm.pos + dir), rl.RED);
