@@ -1,8 +1,11 @@
 const rl = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
-
+const Assets = @import("assets.zig");
+const AnimationPlayer = Assets.AnimationPlayer;
+const Animation = Assets.Animation;
 const Vec2 = @Vector(2, f32);
 const Vec2i = @Vector(2, c_int);
+
 const BgColor = rl.Color {.r = 0x1f, .g = 0x1f, .b = 0x1f, .a = 0x1f};
 
 
@@ -20,51 +23,36 @@ var cameraPos = Vec2 {0, 0};
 var cameraPrevPos = Vec2 {0, 0};
 var cameraAni: ?f32 = null;
 
-var playerPos = Vec2 {0, 0};
-// var playerPrevPos = Vec2 {0, 0};
-// var playerAni: ?f32 = null; // whenever a blocking animation, this value goes from 0 - 1
-var playerAcc = Vec2 {0, 0};
-var playerSpd = Vec2 {0, 0};
-var playerSpdDecay: f32 = 0.75;
-var playerMaxSpd  : f32 = 1;
 
-var playerTurn: f32 = 0;
-var playerTurnAcc: f32 = 0;
-var playerTurnSpd: f32 = 0;
-var playerTurnDecay: f32 = 0.75;
+const Player = struct {
+	mover: Mover = .{
+		.spd_decay_b = 0.75, 
+		.turn_spd_decay_b = 0.75, 
+		.acc_rate_b = 300, 
+		.max_turn_spd_b = 360},
+	fire_rate: f32 = 10,
+	prev_fire: f64 = 0,
+	mass: f32 = 1,
+	size: Vec2 = .{0.2, 0.2},
 
-const playerSize = Vec2 {0.2, 0.2};
-var playerThrust: f32 = 500;
-var playerTurnThrust: f32 = 1000;
+	dead: bool = false,
+	valid: bool = true,
 
-var playerFireRate: f32 = 10;
-var playerPrevFire: f64 = 0;
+	hp: f32 = 50,
+	gems: usize = 0,
+	max_hp: f32 = 50,
+};
+
+var next_lvl_gems: usize = 100;
+
+var player: Player = .{};
+
+
 
 const objectPos = Vec2 {-0.4, 0.4};
 
 
 
-const Bullet = struct {
-	spd: Vec2 = @splat(100),
-	tex: ?*rl.Texture2D = null,
-	pos: Vec2 = .{0, 0},
-	turn: f32 = 0,
-	dmg: f32 = 0,
-	// size: Vec2,
-};
-
-const Asteriod = struct {
-	spd: Vec2,
-	tex: ?*rl.Texture2D = null,
-	pos: Vec2 = .{0, 0},
-
-	turn_spd: f32 = 0,
-	turn: f32 = 0,
-	size: Vec2,
-	hp: f32 = 50,
-
-	explode_player: AnimationPlayer,
-};
 
 fn roundAbout(pos: Vec2) Vec2 {
 	const screen_rang = Vec2 {2 * screenwf/screenhf,2};
@@ -147,28 +135,32 @@ fn TurnFromKey() f32 {
 	else 	if (rl.IsKeyDown(rl.KEY_LEFT))  -1
 	else 									0;
 }
-var bulletSize = Vec2 {0.05, 0.05};
-var bullets: [1024]Bullet = undefined;
-var bulletCt: usize = 0;
 
-var asteriods: [10]Asteriod = undefined;
-var asteriodsCt: usize = 0;
 
 	
 var randGen = std.Random.DefaultPrng.init(0);
 const up = Vec2 {0, -1};
 
 const pixelMul: f32 = 2.5;
+var debug: bool = false;
+fn shootBullet() void {
+	defer bullet_ct = (bullet_ct + 1) % bullets.len;
+	const b = &bullets[bullet_ct];
+	b.tex = @constCast(&Assets.Texs.bullet);
+	const pm = player.mover;
+	const dir = v2rot(up, pm.turn);
 
-fn shootBullet(tex: *const rl.Texture2D) void {
-	defer bulletCt = (bulletCt + 1) % bullets.len;
-	const b = &bullets[bulletCt];
-	b.tex = @constCast(tex);
-	const dir = v2rot(up, playerTurn);
-	b.pos = playerPos + dir * splat(playerSize[1]/2);
-	b.spd = v2rot(.{0, -1.5}, playerTurn) + playerSpd;
-	b.turn = playerTurn;
+	var m = Mover {};
+	m.pos = pm.pos + dir * splat(player.size[1]/2);
+	m.spd = v2rot(.{0, -1.5}, pm.turn) + pm.spd;
+	m.turn = pm.turn;
+	m.spd_decay_b = 0;
+	b.mover = m;
+
 	b.dmg = 5;
+	b.dead_player = AnimationPlayer {.anim = &Assets.Anims.explode_blue, .spd = 15, .size = b.size };
+	b.valid = true;
+
 }
 fn randf(min: f32, max: f32) f32 {
 	const range = max - min;
@@ -177,20 +169,31 @@ fn randf(min: f32, max: f32) f32 {
 fn randSign() f32 {
 	return if (randGen.random().float(f32) > 0.5) 1 else -1;
 }
-fn spawnAsteriod(anim: *Animation) void {
-	defer asteriodsCt = (asteriodsCt + 1) % asteriods.len;
-	const a = &asteriods[asteriodsCt];
+fn spawnAsteriod() void {
+	defer asteriod_ct = (asteriod_ct + 1) % asteriods.len;
+	const a = &asteriods[asteriod_ct];
 
-	var player = AnimationPlayer {.anim = anim};
-	a.tex = @constCast(player.play(0));
-	a.pos = .{randSign() * randf(1.1, 1.5), randSign() * randf(1.1, 1.5)};
-	a.turn = randGen.random().float(f32);
+	var m = Mover {};
+	m.pos = .{randSign() * randf(1.1, 1.5), randSign() * randf(1.1, 1.5)};
+	m.turn = randGen.random().float(f32);
 	const target = Vec2 {randf(-0.75, 0.75), randf(-0.75, 0.75)};
-	a.spd = v2n(target - a.pos) * splat(randf(0.1, 0.5));
-	a.turn_spd = randf(-0.75, 0.75);
+	m.spd = v2n(target - m.pos) * splat(randf(0.1, 0.5));
+	m.turn_spd = randf(-0.75, 0.75);
+	a.mover = m;
 	a.size = splat(randf(0.25, 0.5));
+
+
+	var ap = AnimationPlayer {.anim = &Assets.Anims.asteroid, .size = a.size};
+	a.tex = @constCast(ap.play(0));
+
+
+
+	a.valid = true;
+	a.dead = false;
+
+
 	a.hp = a.size[0] * a.size[0] * 200;
-	a.explode_player = player;
+	a.dead_player = ap;
 	
 	
 }
@@ -209,20 +212,125 @@ fn diffClock(from: f32, to: f32) f32 {
 	return if (clock < counter) clock else -counter; 
 
 }
+const ObjectT = enum {
+	Bullet,
+	Asteriod,
+	Player,
+	Enemy,
+};
+const Object = union(ObjectT) {
+	Bullet: *Bullet,
+	Asteriod: *Asteriod,
+	Player: *Player,
+	Enemy: *Enemy,
+
+	// pub fn init(a: anytype, comptime t: ObjectT) Object {
+	// 	return switch (t) {
+	// 		.Bullet => .{.Bullet = a },
+	// 		.Asteriod => .{.Asteriod = a},
+	// 		.Enemy => .{.Enemy = a},
+	// 		.Player => unreachable
+	// 	};
+	// }
+};
+pub const Gem = struct {
+	lvl: u8 = 0,
+	mover: Mover = .{},
+	valid: bool = false,
+	pub const Texs: [3]*rl.Texture = .{&Assets.Texs.gem_1, &Assets.Texs.gem_2, &Assets.Texs.gem_3};
+	pub const Values: [3]usize = .{1, 5, 35};
+	pub fn spawnGem(value: usize, pos: Vec2) void {
+		var left = value;
+		var cts = [_]usize{0} ** 3;
+		for (0..3) |i| {
+			const ri = 3 - i - 1;
+			cts[ri] = left / Values[ri];
+			left -= cts[ri] * Values[ri];
+		}
+		for (cts, 0..) |ct, lvl| {
+			for (0..ct) |_| {
+				defer gem_ct = (gem_ct + 1) % gems.len;
+				const g = &gems[gem_ct];
+				g.lvl = @intCast(lvl);
+				g.valid = true;
+				g.mover.pos = pos;
+				g.mover.spd = .{randf(-0.2, 0.2), randf(-0.2, 0.2)};
+				g.mover.turn = randf(0, 360);
+				g.mover.turn_spd = randf(-1, 1);
+				g.mover.spd_decay_b = 1;
+			}
+
+		}
+
+	}
+};
+const Bullet = struct {
+	mover: Mover = .{},
+
+	size: Vec2 = .{0.05, 0.05},
+	dmg: f32 = 0,
+	onhit: (*const HitFn) = defaultHit(),
+
+	tex: ?*rl.Texture2D = null,
+	dead_player: AnimationPlayer = undefined,
+
+	valid: bool = false,
+	dead: bool = false,
+	pub const HitFn = fn (self: *Bullet, other: Object) void;
+	pub fn defaultHit() HitFn {
+		return struct {
+			pub fn impl(self: *Bullet, other: Object) void {
+				switch (other) {
+					inline .Asteriod, .Enemy, .Player => |o| {
+						o.hp -= self.dmg;
+						self.dead = true;
+					},
+					else => {},
+				}
+			}
+		}.impl;
+
+	}
+
+	// size: Vec2,
+};
+
+const Asteriod = struct {
+	mover: Mover = .{},
+
+	size: Vec2 = .{0.1, 0.1},
+	hp: f32 = 50,
+	mass: f32 = 10,
+
+
+	tex: ?*rl.Texture2D = null,
+	dead_player: AnimationPlayer = undefined,
+	dead: bool = true,
+	valid: bool = false,
+};
+
+
 const Mover = struct {
+	// state that should no be directly modified
 	spd: Vec2 = .{0, 0},
 	pos: Vec2 = .{0, 0},
-	acc_rate: f32 = 0.8,
-	// acc		: f32 = 0,
-	max_spd:  f32 = 0.8,
-
-	turn_spd: f32 = 0,
 	turn: f32 = 0,
-	turn_acc_rate: f32 = 1,
-	// turn_acc: f32 = 0,
-	max_turn_spd:  f32 = 5,
+	turn_spd: f32 = 0, // turnning does not have acceleration (or infinite acceleration)
 
-	// pub const turn_limit	: f32 = 5 / 180 * rl.PI;
+	acc_rate_b: f32 = 0.8,
+	spd_decay_b: f32 = 1, // no decay by default
+
+	turn_spd_decay_b: f32 = 1,
+	max_turn_spd_b:  f32 = 5,
+
+
+
+	acc_rate_m: f32 = 1,
+	spd_decay_m: f32 = 1, // no decay by default
+	max_spd_m:  f32 = 1,
+
+	turn_spd_decay_m: f32 = 1,
+	max_turn_spd_m:  f32 = 1,
 
 
 	pub fn turnToPos(m: *Mover, pos: Vec2, dt: f32) void {
@@ -240,7 +348,7 @@ const Mover = struct {
 		// std.log.debug("turn diff: {}, limit {}", .{turn_diff, turn_limit});
 
 
-		m.turn_spd = m.max_turn_spd * turn_dir;
+		m.turn_spd = m.max_turn_spd_b * m.max_turn_spd_m * turn_dir;
 		const expected = @mod(m.turn_spd * dt + m.turn, 2*rl.PI);
 		const expected_diff = diffClock(expected, dir);
 		if (expected_diff * turn_dir <= 0) {
@@ -249,111 +357,297 @@ const Mover = struct {
 		} 
 	}
 	pub fn foward(m: *Mover, dt: f32) void {
-		m.spd += v2rot(up, m.turn) * splat(dt * m.acc_rate);
+		m.spd += v2rot(up, m.turn) * splat(dt * m.acc_rate_b * m.acc_rate_m);
 		const l = v2len(m.spd);
-		m.spd = m.spd * splat(@min(m.max_spd, l) / l);
+		_ = l; // autofix
+
+		// m.spd *= splat(1 - (1 - (0.1)) * dt);
 	}
 	pub fn move(m: *Mover, dt: f32) void {
 		m.turn += m.turn_spd * dt;
 		m.turn = @mod(m.turn, 2*rl.PI);
 		m.pos += m.spd * splat(dt);
+		m.spd = m.spd * splat(1 - (m.spd_decay_b * m.spd_decay_m) * dt);
+
 	}
 	// pub fn turn(self: *Move)
 
 
 };
-const Enemy = struct {
-	tex: ?*rl.Texture2D = null,
-	size: Vec2 = .{0.15, 0.15},
-	warmhole_player: AnimationPlayer = undefined,
-	hp: f32 = 0,
-	mover: Mover = .{},
-
-
-	ai_turn_rate: f32 = 5,
-
-
-	// pub fn turnTo(self: *Enemy, dt: f32) void {
-
-	// 	std.log.debug("turnto", .{});
-	// 	const m = &self.mover;
-	// 	const player_dir = playerPos - m.pos;
-	// 	const player_dir_angle = std.math.acos(v2dot(up, player_dir) / v2len(player_dir)) ;
-	// 	{
-	// 		var buf:[64:0]u8 = undefined;
-	// 		@memset(&buf, 0);
-	// 	 	_ = std.fmt.bufPrint(&buf, "{} {}", .{@as(isize, @intFromFloat(player_dir_angle * 180 / rl.PI)), @as(isize, @intFromFloat(playerTurn * 180 / rl.PI))}) catch unreachable;
-	// 		rl.DrawText(&buf, 10, 10, 15, rl.RED);
-	// 	}
-	// 	const turn_diff = player_dir_angle - m.turn;
-	// 	if (turn_diff < 5.0 / 180.0 * rl.PI) return;
-	// 	const turn_dir: f32  = std.math.sign(turn_diff);
-	// 	m.turn += turn_dir * self.ai_turn_rate * dt;
-	// }
+const Weapon = struct {
+	fire_rate: f32,
+	prev_fire: f64 = 0,
+	shoot: *const ShootFn = undefined,
+	pub const ShootFn = fn (*Weapon, *anyopaque, f64) void;
 	
 };
-var enemies: [128]Enemy = [_]Enemy {Enemy {}} ** 128;
-var enemiesCt: usize = 0;
-fn spawnEnemy(warmhole_anim: *Animation, enemy_tex: *const rl.Texture2D) void {
-	defer enemiesCt += 1;
-	const player = AnimationPlayer {.anim = warmhole_anim, .spd = 10};
-	const e = &enemies[enemiesCt];
-	e.tex = @constCast(enemy_tex);
-	e.warmhole_player = player;
-	e.hp = 10;
-	e.mover.pos = .{randf(-0.8, 0.8), randf(-0.8, 0.8)};
-	std.log.debug("pos: {any}", .{e.mover.pos});
+const ChargeState = union(enum) {
+	Finding,
+	Charging: f32,
+	Attacking: f32,
+	Cooling: f32,
 
-	
-	
+	pub var charge_t: f32 = 3;
+	pub var attack_t: f32 = 0.75;
+	pub var cool_t: f32 = 5;
+};
+const EnemyExtra = union(enum) {
+	None,
+	Charge: ChargeState,
+};
 
-}
-const Frames = std.ArrayList(rl.Texture2D);
-const Animation = struct {
-	frames: Frames,
-	img: rl.Image,
-	pub fn init(path: [*c]const u8, allocator: std.mem.Allocator) Animation {
-		var total_frame_ct: usize = 0;
-		var res = Animation {.frames = Frames.init(allocator), .img = rl.LoadImageAnim(path, @ptrCast(&total_frame_ct))};
-		for (0..total_frame_ct) |i| {
-			const off = @as(usize, @intCast(res.img.width*res.img.height))*4*i;
-			const tex = rl.LoadTextureFromImage(res.img);
-			const data: [*]u8 = @ptrCast(res.img.data orelse unreachable);
-			rl.UpdateTexture(tex, data + off);
-			res.frames.append(tex) catch unreachable;
-		}
-		return res;
+const Enemy = struct {
+	mover: Mover = .{},
+	valid: bool = false,
+	dead: bool = false,
+	size: Vec2 = .{0.15, 0.15},
+	// weapon: Weapon = .{},
+
+	hp: f32 = 0,
+	mass: f32 = 1,
+
+	tex: ?*rl.Texture2D = null,
+	warmhole_player: AnimationPlayer = undefined,
+	explode_player: AnimationPlayer = undefined,
+
+	weapon: Weapon = .{.fire_rate = 600},
+
+	extra: EnemyExtra = .None,
+	ai: ?*const AiFn = null,
+
+	worth: usize = 0,
+	pub const AiFn = fn (*Enemy, f32, f64) void;
+
+	fn spawnHunter() void {
+		defer enemy_ct += 1;
+		const ap = AnimationPlayer {.anim = &Assets.Anims.wormhole, .spd = 10};
+		const e = &enemies[enemy_ct];
+		e.tex = @constCast(&Assets.Texs.hunter);
+		e.warmhole_player = ap;
+		e.hp = 100;
+		e.mover.pos = .{randf(-0.8, 0.8), randf(-0.8, 0.8)};
+		e.mover.max_turn_spd_b = 3;
+		e.mover.max_spd_b = 0.25; 
+		e.mover.acc_rate_b = 3;
+		e.explode_player = AnimationPlayer { .anim = &Assets.Anims.explode_blue };
+		e.valid = true;
+		e.weapon.fire_rate = 1;
+		e.weapon.shoot = struct {
+			pub fn impl(w: *Weapon, o: *anyopaque, et: f64) void {
+				const enemy: *Enemy = @alignCast(@ptrCast(o));
+				if (et - w.prev_fire >= 1/w.fire_rate) {
+					w.prev_fire = et;
+					defer ebullet_ct = (ebullet_ct + 1) % ebullets.len;
+					const b = &ebullets[ebullet_ct];
+					b.tex = &Assets.Texs.bullet_fire;
+					const em = enemy.mover;
+					const dir = v2rot(up, em.turn);
+
+					var m = Mover {};
+					m.pos = em.pos + dir * splat(enemy.size[1]/2);
+					m.spd = v2rot(.{0, -1.5}, em.turn) + em.spd;
+					m.turn = em.turn;
+					b.mover = m;
+
+					b.dmg = 5;
+					b.dead_player = AnimationPlayer {.anim = &Assets.Anims.explode_blue, .spd = 15, .size = b.size };
+					b.valid = true;
+				}
+			}
+		}.impl;
+		e.ai = struct {
+			pub fn impl(enemy: *Enemy, dt: f32, et: f64) void {
+				const m = &enemy.mover;
+				m.turnToPos(player.m.pos, dt);
+				m.foward(dt);
+				m.move(dt);
+				e.weapon.shoot(&e.weapon, @ptrCast(e), et);
+			}
+		}.impl;
+		e.extra = .None;
+	}
+	fn spawnCrasher() void {
+		defer enemy_ct += 1;
+		const ap = AnimationPlayer {.anim = &Assets.Anims.wormhole, .spd = 10};
+		const e = &enemies[enemy_ct];
+		e.tex = @constCast(&Assets.Texs.crasher);
+		e.warmhole_player = ap;
+		e.hp = 20;
+		e.mover.pos = .{randf(-0.8, 0.8), randf(-0.8, 0.8)};
+		e.mover.max_turn_spd_b = 3;
+		e.mover.acc_rate_b = 10;
+		e.mover.spd_decay_b = 15;
+		e.explode_player = AnimationPlayer { .anim = &Assets.Anims.explode_blue };
+		e.valid = true;
+		e.weapon.fire_rate = 1;
+		e.weapon.shoot = struct {
+			pub fn impl(_: *Weapon, _: *anyopaque, _: f64) void {
+			}
+		}.impl;
+		e.extra = .{.Charge = .Finding};
+		e.worth = 37;
+		e.ai = struct {
+			pub fn impl(enemy: *Enemy, dt: f32, et: f64) void {
+				_ = et; // autofix
+				const charge_state = &enemy.extra.Charge;
+				const m = &enemy.mover;
+				const pm = &player.mover;
+
+				switch (charge_state.*) {
+					.Finding => {
+						m.acc_rate_m = 1;
+						if (v2dist(m.pos, pm.pos) < 0.5) {
+							charge_state.* = .{.Charging = 0};
+						}
+					},
+					.Charging => |*ct| {
+						ct.* += dt;
+						m.acc_rate_m = 0.15;
+						if (ct.* > ChargeState.charge_t) {
+							charge_state.* = .{.Attacking = 0};
+						}
+						// m.spd = 1.5;
+						// m.move(dt); 
+					},
+					.Attacking => |*at| {
+						at.* += dt;
+						m.acc_rate_m = 2.75;
+						m.max_turn_spd_m = 0.1;
+						if (at.* > 1) {
+							charge_state.* = .{.Cooling = 0};
+						}
+					},
+					.Cooling => |*ct| {
+						m.acc_rate_m = 0.25;
+						m.max_turn_spd_m = 1;
+						m.turnToPos(pm.pos, dt);
+						m.move(dt);
+						ct.* += dt;
+						if (ct.* > ChargeState.cool_t) {
+							charge_state.* = .Finding;
+							m.max_spd_m = 1;
+						}
+					}
+					
+				}
+				m.turnToPos(pm.pos, dt);
+				m.foward(dt);
+				m.move(dt);
+			}
+		}.impl;
 		
 	}
-	pub fn deinit(self: *Animation) void {
-		for (self.frames.items) |t| {
-			rl.UnloadTexture(t);
-		}
-		rl.UnloadImage(self.img);
-		self.frames.deinit();
-	}
+};
 
-};
-const AnimationPlayer = struct {
-	spd: f32 = 2,
-	curr_frame: usize = 0,
-	et: f32 = 0,
-	anim: *Animation,
-	pub fn play(self: *AnimationPlayer, t: f32) *rl.Texture2D {
-		self.et += t;
-		if (self.et >= 1/self.spd) {
-			self.curr_frame = (self.curr_frame + 1) % self.anim.frames.items.len;
-			self.et = 0;
+
+fn testHit(x: anytype, y: anytype, comptime t: ObjectT) void {
+	if (x.dead or !y.valid) return;
+	const dist = v2dist(x.mover.pos, y.mover.pos);
+	if (dist < (x.size[0] + y.size[0])/2) {
+		x.onhit(x,  @unionInit(Object, @tagName(t), y));
+		rl.PlaySound(Assets.Sounds.bullet_hit);
+
+	}
+}
+
+fn testHits(xs: anytype, ys: anytype, comptime t: ObjectT) void {
+	for (xs) |*x| {
+		if (x.dead or !x.valid) continue;
+		for (ys) |*y| {
+			testHit(x, y, t);
+			
 		}
-		return &self.anim.frames.items[self.curr_frame];
 	}
-	pub fn isLast(self: AnimationPlayer) bool {
-		return self.curr_frame >= self.anim.frames.items.len - 1;
+	
+}
+fn testCollide(x: anytype, y: anytype, dmg: bool) void {
+	const dist = v2dist(x.mover.pos, y.mover.pos);
+	if (dist < (x.size[0] + y.size[0])/2) {
+		const m = x.mass + y.mass;
+		const wx = y.mass / m;
+		const wy = x.mass / m;
+		const d = v2n(x.mover.pos - y.mover.pos) ;
+		const xs = v2dot(x.mover.spd, d);
+		const ys = v2dot(y.mover.spd, d);
+		const s = xs - ys;
+		if (s >= 0) return;
+		// rl.PlaySound(Assets.Sounds.collide);
+		if (dmg) {
+			y.hp -= wy * (-s) * 10;
+			x.hp -= wx * (-s) * 10;
+		}
+
+		x.mover.spd -= splat(wx * (1 + elastic) * s) * d;
+		y.mover.spd += splat(wy * (1 + elastic) * s) * d;
+		
+
+		const diff =  (x.size[0] + y.size[0])/2 - dist;
+		x.mover.pos += splat(0.5 * diff) * d;
+		y.mover.pos -= splat(0.5 * diff) * d;
 	}
-	pub fn last(self: AnimationPlayer) usize {
-		return self.anim.frames.items.lenm;
+}
+// fn collideDamage(x: anytype, y: anytype) void {
+	   
+// }
+fn testCollides(xs: anytype, ys: anytype, dmg: bool) void {
+	for (xs) |*x| {
+		if (!x.valid or x.dead) continue;
+		for (ys) |*y| {
+			if (!y.valid or y.dead) continue;
+			testCollide(x, y, dmg);
+			
+		}
 	}
-};
+}
+fn testCollideSelf(xs: anytype) void {
+	for (xs[0..xs.len-1], 0..) |*x1, i| {
+		if (x1.dead or !x1.valid) continue;
+		for (xs[i+1..]) |*x2| {
+			if (x2.dead or !x2.valid) continue;
+			testCollide(x1, x2, false);
+		}
+	}
+}
+fn playAnim(anim: *Animation) void {
+	defer anim_ct = (anim_ct + 1) % anims.len;
+	const a: AnimationPlayer = &anim[anim_ct];
+	a.anim = anim;
+	a.curr_frame = 0;
+	a.valid = true;
+
+}
+
+var enemies: [128]Enemy = [_]Enemy {Enemy {}} ** 128;
+var enemy_ct: usize = 0;
+
+var bulletSize = Vec2 {0.05, 0.05};
+var bullets: [1024]Bullet = [_]Bullet {Bullet {}} ** 1024;
+var bullet_ct: usize = 0;
+
+var ebullets: [1024]Bullet = [_]Bullet {Bullet {}} ** 1024;
+var ebullet_ct: usize = 0;
+
+var anims: [64]AnimationPlayer = [_]AnimationPlayer {AnimationPlayer {}} ** 64;
+var anim_ct: usize = 0;
+
+var asteriods: [10]Asteriod = [_]Asteriod {Asteriod {}} ** 10;
+var asteriod_ct: usize = 0;
+
+var gems: [64]Gem = [_]Gem {Gem {}} ** 64;
+var gem_ct: usize = 0;
+
+
+fn playDeadAnim(o: anytype, dt: f32) void {
+	std.debug.assert(o.valid and o.dead);
+	const ap: *AnimationPlayer = &o.dead_player;
+	const m: Mover = o.mover;
+	const tex = ap.play(dt);
+	DrawTexture(tex.*, m.pos, ap.size, m.turn);
+	if (ap.isLast()) {
+		o.valid = false;
+	}
+}
+
 
 
 pub inline fn DrawTexture(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32) void {
@@ -375,21 +669,60 @@ pub fn DrawTextureTint(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32, t
 		dw = @as(f32, @floatFromInt(tex.width)) 	* pixelMul;
 		dh = @as(f32, @floatFromInt(tex.height)) 	* pixelMul;
 	}
-
 	rl.DrawTexturePro(
 				tex, 
 				.{.x = 0, .y = 0, .width = tw, .height = th}, 
 				.{.x = pos.x, .y = pos.y, .width = dh, .height = dw},
 						.{.x = dw/2, .y = dh/2},
 				rot / rl.PI * 180.0, tint);
-	rl.DrawCircleLinesV(pos, @max(dw, dh)/2, rl.RED); // debug
+	if (debug)
+		rl.DrawCircleLinesV(pos, @max(dw, dh)/2, rl.RED); // debug
 	
 }
-
+// var explode_anim: Animation = undefined;
+// var bullet_hit_anim: Animation = undefined;
+// var bullet_fire_tex: rl.Texture2D = undefined;
+// var crasher_tex: rl.Texture2D = undefined;
 // asteroids => everything
 // player => enemies, enemies bullets
 // player bulletes => enemies, enemies bulletes
+const elastic = 0.9; 
+pub fn DrawHUD() void {
+	// const healthbar_pos = Vec
+	const hp_color = rl.RED;
+	const hp_bg_color = rl.Color {.r = 100, .g = 50, .b = 50, .a = 255};
+	const hp_pos = Vec2 {0, 0.9};
+	const hp_len = 0.7;
+	const hp_hei = 0.002;
+	{
+		const perc = (player.hp / player.max_hp);
+		DrawRectCentered(hp_pos, .{hp_len , hp_hei}, hp_bg_color);
+		DrawRectCentered(hp_pos - Vec2 {hp_len * (1 - perc) / 2,0}, .{hp_len * perc, hp_hei}, hp_color);
+	}
 
+
+
+	const gem_color = rl.GREEN;
+	const gem_bg_color = rl.Color {.r = 50, .g = 100, .b = 50, .a = 255};
+	const gem_pos = Vec2 {0, 0.88};
+	const gem_len = 0.7;
+	const gem_hei = 0.002;
+	{
+		const perc = (@as(f32, @floatFromInt(player.gems)) / @as(f32, @floatFromInt(next_lvl_gems)));
+		DrawRectCentered(gem_pos, .{gem_len , gem_hei}, gem_bg_color);
+		DrawRectCentered(gem_pos - Vec2 {gem_len * (1 - perc) / 2,0}, .{gem_len * perc, gem_hei}, gem_color);
+	}
+
+}
+pub fn DrawRestart() void {
+	DrawRectCentered(.{0, 0}, .{0.8, 0.1}, rl.Color {.r = 0x7f, .g = 0x7f, .b = 0x7f, .a = 0xff});
+	const pos = coordn2srl(.{0, 0});
+	const text_size = rl.MeasureText("Restart", 15);
+	rl.DrawText("Restart", @as(c_int, @intFromFloat(pos.x)) - @divTrunc(text_size, 2), @intFromFloat(pos.y), 15, rl.WHITE) ;
+}
+
+
+var thrust_player = AnimationPlayer {.anim = &Assets.Anims.thrust, .spd = 2};
 pub fn main() !void {
 	const c_alloc = std.heap.c_allocator;
 	rl.InitWindow(screenw, screenh, "My Window Name");
@@ -397,131 +730,124 @@ pub fn main() !void {
 	rl.SetTraceLogLevel(rl.LOG_ERROR);
 	defer rl.CloseWindow();
 
-
-	var explode_anim = Animation.init("assets/asteriod-explode2.gif", c_alloc);
-	defer explode_anim.deinit();
-	var thrust_anim = Animation.init("assets/thurst.gif", c_alloc);
-	defer thrust_anim.deinit();
-	var thrust_player = AnimationPlayer {.anim = &thrust_anim, .spd = 2};
-	var warmhole_anim = Animation.init("assets/wormhole.gif", c_alloc);
-	defer warmhole_anim.deinit();
-	// var warmhole_player = AnimationPlayer {.anim = &warmhole_anim, .spd = 2};
-	// _ = warmhole_player; // autofix
-
-
-	const fighter_tex = rl.LoadTexture("assets/fighter2.png");
-	const bullet_tex = rl.LoadTexture("assets/bullet.png");
-	const asteroid_tex = rl.LoadTexture("assets/asteriod.png");
-	const enemy_tex = rl.LoadTexture("assets/enemy-1.png");
-
-	// const asteroid_explode_tex = rl.LoadTexture("assets/asteriod-explode.png");
-
-
-
-	defer { 
-		rl.UnloadTexture(fighter_tex); 
-		rl.UnloadTexture(bullet_tex); 
-		rl.UnloadTexture(asteroid_tex);
-	}
+	Assets.load();
+	defer Assets.unload();
 	while (!rl.WindowShouldClose()) {
 		var aa = std.heap.ArenaAllocator.init(c_alloc);
 		defer aa.deinit();
 		const t = rl.GetFrameTime();
 		const et = rl.GetTime();
 		// std.log.debug("t: {}", .{t});
+		var pm = &player.mover;
 		rl.BeginDrawing();
 		{
-			if (rl.IsKeyPressed(rl.KEY_R)) {
-				playerTurnAcc 	= 0;
-				playerTurnSpd 	= 0;
-				playerTurn 		= 0;
-
-				playerAcc = .{0, 0};
-				playerSpd = .{0, 0};
-				playerPos = .{0, 0};
-			}
-
 			rl.ClearBackground(BgColor);
-			playerTurnAcc 	 = TurnFromKey() * t * playerTurnThrust;
-			playerTurnSpd 	+= playerTurnAcc * t;
-			playerTurn 		+= playerTurnSpd * t;
-			playerTurn		 = @mod(playerTurn, 2 * rl.PI);
-			playerTurnSpd 	*= 1 - (1 - playerTurnDecay) * t;
-
-			const move_dir = DirFromKey();
-			playerAcc  = v2rot(move_dir, playerTurn) * splat(t * playerThrust);
-			playerSpd += playerAcc * splat(t);
-			// playerSpd += 
-			playerPos += playerSpd * splat(t);
-			playerPos  = roundAbout(playerPos);
-			playerSpd *= splat(1 - (1 - playerSpdDecay) * t);
-
-
-			DrawTexture(fighter_tex, playerPos, null, playerTurn);
-			if (!v2eq0(move_dir)) {
-				DrawTexture(thrust_player.play(t).*, playerPos - v2rot(up, playerTurn) * splat(0.6 * playerSize[1]), playerSize * splat(0.25), playerTurn);
+			player.dead = player.dead or player.hp <= 0;
+			if (rl.IsKeyPressed(rl.KEY_R)) {
+				player = Player {};
 			}
-			if (rl.IsKeyDown(rl.KEY_SPACE) and et - playerPrevFire >= 1/playerFireRate) {
-				playerPrevFire = et;
-				shootBullet(&bullet_tex);
-			}
-			if (rl.IsKeyPressed(rl.KEY_A)) {
-				spawnAsteriod(&explode_anim);
-			}
-			if (rl.IsKeyPressed(rl.KEY_S)) {
-				spawnEnemy(&warmhole_anim, &enemy_tex);
-			}
-			if (rl.IsKeyPressed(rl.KEY_LEFT_SHIFT)) {
-				std.log.debug("teleport", .{});
-				const mouse_pos = rl.GetMousePosition();
-				playerTurnAcc 	= 0;
-				playerTurnSpd 	= 0;
-				playerTurn 		= 0;
+			if (!player.dead) {
 
-				playerAcc = .{0, 0};
-				playerSpd = .{0, 0};
-				playerPos = srl2coord(mouse_pos);
-				std.log.debug("mouse: {} {any}", .{mouse_pos, playerPos});
+				// const turn_acc 	 = TurnFromKey() * t * pm.turn_acc_rate;
+				pm.turn_spd 	 = TurnFromKey() * t * pm.max_turn_spd_b;
+				pm.turn_spd  	*= 1 - (1 - pm.turn_spd_decay_b) * t;
 
-			}
+				const move_dir = DirFromKey();
+				const acc	   	= v2rot(move_dir, pm.turn) * splat(t * pm.acc_rate_b);
 
+				pm.spd 		+= acc * splat(t);
+				pm.spd 		*= splat(1 - pm.spd_decay_b * pm.spd_decay_m * t);
+				pm.move(t);
+				pm.pos  	 = roundAbout(pm.pos);
 
-			outer: for (&bullets) |*b| {
-				const tex = b.tex orelse continue;
-				b.pos += b.spd * splat(t);
-				DrawTexture(tex.*, b.pos, null, b.turn);
-				for (&asteriods) |*a| {
-					_ = a.tex orelse continue;
-					const dist = v2dist(a.pos, b.pos);
-					if (dist < bulletSize[0]/2 + a.size[0]/2) {
-						a.hp -= b.dmg;
-						b.tex = null;
-						continue :outer;
-					}
+				DrawTexture(Assets.Texs.fighter, pm.pos, null, pm.turn);
+				if (!v2eq0(move_dir)) {
+					DrawTexture(thrust_player.play(t).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), player.size * splat(0.25), pm.turn);
 				}
-				for (&enemies) |*e| {
-					_ = e.tex orelse continue;
-					const m = &e.mover;
-					const dist = v2dist(m.pos, b.pos);
-					if (dist < bulletSize[0]/2 + e.size[0]/2) {
-						e.hp -= b.dmg;
-						b.tex = null;
-						continue :outer;
-					}
+				if (rl.IsKeyDown(rl.KEY_SPACE) and et - player.prev_fire >= 1/player.fire_rate) {
+					player.prev_fire = et;
+					shootBullet();
+					rl.PlaySound(Assets.Sounds.shoot);
+				}
+				if (rl.IsKeyPressed(rl.KEY_A)) {
+					spawnAsteriod();
+				}
+				if (rl.IsKeyPressed(rl.KEY_S)) {
+					Enemy.spawnCrasher();
+	
+				}
+				if (rl.IsKeyPressed(rl.KEY_D)) {
+					debug = !debug;
+				}
+				if (rl.IsKeyPressed(rl.KEY_LEFT_SHIFT)) {
+					const mouse_pos = rl.GetMousePosition();
+					pm.turn_spd 	= 0;
+					pm.turn 		= 0;
+
+					pm.spd = .{0, 0};
+					pm.pos = srl2coord(mouse_pos);
+
 				}
 			}
+
+			testHits(&bullets, &enemies, .Enemy);
+			testHits(&bullets, &asteriods, .Asteriod);
+
+			for (&bullets) |*b| {
+				if (!b.valid) continue;
+
+				if (b.dead) {
+					playDeadAnim(b, t);
+				} else {
+					const m = &b.mover;
+					m.move(t);
+					DrawTexture(b.tex.?.*, m.pos, null, m.turn);
+
+				}
+
+			}
+			for (&ebullets) |*b| {
+				if (!b.valid) continue;
+
+				if (b.dead) {
+					playDeadAnim(b, t);
+				} else {
+					testHit(b, &player, .Player);
+					const m = &b.mover;
+					m.move(t);
+					DrawTexture(b.tex.?.*, m.pos, null, m.turn);
+				}
+
+			}
+			testCollides(&asteriods, &enemies, true);
+			testCollideSelf(&asteriods);
 			for (&asteriods) |*a| {
-				if (a.tex != null and a.hp <= 0) {
-					a.tex = if (a.explode_player.isLast()) null else a.explode_player.play(t);
+				if (!a.valid) continue;
+				if (a.hp <= 0) a.dead = true;
+				const m = &a.mover;
+				testCollide(a, &player, true);
+				m.move(t);
+				if (a.dead) {
+					playDeadAnim(a, t);
+				} else {
+					const tex = a.tex.?;
+					DrawTexture(tex.*, m.pos, a.size, m.turn);
 				}
-				const tex = a.tex orelse continue;
-				a.pos += a.spd * splat(t);
-				a.turn += a.turn_spd * t;
-				DrawTexture(tex.*, a.pos, a.size, a.turn);
+
 			}
+			testCollideSelf(&enemies);
+
 			for (&enemies) |*e| {
-				const tex = e.tex orelse continue;
+				if (!e.valid) continue;
 				const m = &e.mover;
+
+				if (e.hp <= 0) {
+					if (!e.dead) {
+						Gem.spawnGem(e.worth, m.pos);
+					}
+					e.dead = true;
+				}
+				const tex = e.tex.?;
 				const hole_rot = m.turn + rl.PI / 2;
 				const hole_pos = m.pos + v2rot(.{0.15, 0}, hole_rot);
 				if (!e.warmhole_player.isLast()) {
@@ -535,20 +861,67 @@ pub fn main() !void {
 						DrawTextureTint(tex.*, lerp_pos, null, m.turn, tint);
 
 					}
-				} else {
-					m.turnToPos(playerPos, t);
-					m.foward(t);
-					m.move(t);
-					DrawTexture(tex.*, m.pos, null, m.turn);
+					continue;
 				}
 
+
+				if (e.dead) {
+					if (!e.explode_player.isLast()) {
+						DrawTexture(e.explode_player.play(t).*, m.pos, null, m.turn);
+					} else {
+						e.tex = null;
+						e.valid = false;
+					}
+				} else {
+					testCollide(e, &player, true);
+					if (e.ai) |ai| ai(e, t, et);
+					DrawTexture(tex.*, m.pos, null, m.turn);
+				}
+				
+
+			}
+			for (&gems) |*g| {
+				if (!g.valid) continue;
+				const gm = &g.mover;
+				const dist = v2dist(gm.pos, pm.pos);
+				if (dist < 0.1) {
+					g.valid = false;
+					player.gems += Gem.Values[g.lvl];
+					const i = randGen.next() % 3;
+					const sound = switch (i) {
+						0 => &Assets.Sounds.gem_pickup_1,
+						1 => &Assets.Sounds.gem_pickup_2,
+						2 => &Assets.Sounds.gem_pickup_3,
+						else => unreachable
+					};
+					rl.PlaySound(sound.*);
+					
+				}
+				if (dist < 0.4) {
+					gm.spd += v2n(pm.pos - gm.pos) * splat(gm.acc_rate_b * gm.acc_rate_m * t);
+				}
+				gm.move(t);
+				gm.pos = roundAbout(gm.pos);
+				DrawTexture(Gem.Texs[g.lvl].*, gm.pos, null, gm.turn);
+			}
+			if (player.gems >= next_lvl_gems) {
+				player.gems -= next_lvl_gems;
+				next_lvl_gems *= 2;
+				rl.PlaySound(Assets.Sounds.level_up);
 			}
 
 
+			// for (&anims) |a| {
+			// 	if (!a.valid) continue;
+			// 	const tex = a.play(t);
 
-			const dir = v2rot(up, playerTurn);
-			rl.DrawLineV(coordn2srl(playerPos), coordn2srl(playerPos + dir), rl.RED);
-			rl.DrawCircleV(coordn2srl(playerPos), 2, rl.RED);
+			// }
+			DrawHUD();
+			if (player.dead) DrawRestart();
+
+			const dir = v2rot(up, pm.turn);
+			if (debug)
+				rl.DrawLineV(coordn2srl(pm.pos), coordn2srl(pm.pos + dir), rl.RED);
 
 		}
 
@@ -556,3 +929,16 @@ pub fn main() !void {
 		rl.EndDrawing();
 	}
 }
+
+
+// pub fn dmage(dmg: f32) (fn () f32) {
+// 	return struct {
+// 		pub fn impl() f32 {
+// 			return dmg;
+// 		}
+// 	}.impl;
+// }
+// test "capture" {
+// 	const f = dmage(5);
+// 	try std.testing.expect(f() == 5);
+// }
