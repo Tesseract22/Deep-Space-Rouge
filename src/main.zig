@@ -26,9 +26,10 @@ var cameraAni: ?f32 = null;
 
 const Player = struct {
 	mover: Mover = .{
-		.spd_decay_b = 0.75, 
+		.spd_decay_b = 0, 
 		.turn_spd_decay_b = 0.75, 
-		.acc_rate_b = 300, 
+		.acc_rate_b = 10, 
+		.acc_rate_m = 1,
 		.max_turn_spd_b = 360},
 	fire_rate: f32 = 10,
 	prev_fire: f64 = 0,
@@ -788,18 +789,15 @@ pub fn main() !void {
 				pm.turn_spd 	 = TurnFromKey() * dt * pm.max_turn_spd_b;
 				pm.turn_spd  	*= 1 - (1 - pm.turn_spd_decay_b) * dt;
 
-				const move_dir = DirFromKey();
-				const acc	   	= v2rot(move_dir, pm.turn) * splat(dt * pm.acc_rate_b);
+				if (rl.IsKeyPressed(rl.KEY_UP)) {
+					pm.foward();
+					DrawTexture(thrust_player.play(dt).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), player.size * splat(0.25), pm.turn);
 
-				pm.spd 		+= acc * splat(dt);
-				pm.spd 		*= splat(1 - pm.spd_decay_b * pm.spd_decay_m * dt);
+				}
 				pm.move();
 				pm.pos  	 = roundAbout(pm.pos);
 
 				DrawTexture(Assets.Texs.fighter, pm.pos, null, pm.turn);
-				if (!v2eq0(move_dir)) {
-					DrawTexture(thrust_player.play(dt).*, pm.pos - v2rot(up, pm.turn) * splat(0.6 * player.size[1]), player.size * splat(0.25), pm.turn);
-				}
 				if (rl.IsKeyDown(rl.KEY_SPACE) and et - player.prev_fire >= 1/player.fire_rate) {
 					player.prev_fire = et;
 					shootBullet();
