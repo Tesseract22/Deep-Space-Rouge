@@ -42,6 +42,7 @@ pub const Texs = struct {
     
     pub var fighter:        rl.Texture2D = undefined;
     pub var bullet:         rl.Texture2D = undefined;
+    pub var bullet_2:       rl.Texture2D = undefined;
     pub var asteroid:       rl.Texture2D = undefined;
     // pub var enemy: rl.Texture2D = undefined;
 
@@ -56,6 +57,10 @@ pub const Texs = struct {
     pub var block:          rl.Texture2D = undefined;
     pub var water:          rl.Texture2D = undefined;
     pub var weapon_1:       rl.Texture2D = undefined;
+    pub var machine_gun:   rl.Texture2D = undefined;
+    pub var weight:         rl.Texture2D = undefined;
+    pub var triple_shots:   rl.Texture2D = undefined;
+    pub var energy_bullet:  rl.Texture2D = undefined;
     pub fn load() void {
         const info = @typeInfo(Texs).Struct;
         inline for (info.decls) |d| {
