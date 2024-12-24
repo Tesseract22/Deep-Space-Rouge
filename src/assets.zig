@@ -11,7 +11,7 @@ pub const Anims = struct {
     pub var bullet_hit:     Animation = undefined;
     pub fn load() void {
     
-        const info = @typeInfo(Anims).Struct;
+        const info = @typeInfo(Anims).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -26,7 +26,7 @@ pub const Anims = struct {
         }
     }
     pub fn unload() void {
-        const info = @typeInfo(Anims).Struct;
+        const info = @typeInfo(Anims).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -62,7 +62,7 @@ pub const Texs = struct {
     pub var triple_shots:   rl.Texture2D = undefined;
     pub var energy_bullet:  rl.Texture2D = undefined;
     pub fn load() void {
-        const info = @typeInfo(Texs).Struct;
+        const info = @typeInfo(Texs).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -77,7 +77,7 @@ pub const Texs = struct {
         }
     }
     pub fn unload() void {
-        const info = @typeInfo(Texs).Struct;
+        const info = @typeInfo(Texs).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -98,7 +98,7 @@ pub const Sounds = struct {
     pub var collide:        rl.Sound = undefined;
     pub var explode_1:      rl.Sound = undefined;
     pub fn load() void {
-        const info = @typeInfo(Sounds).Struct;
+        const info = @typeInfo(Sounds).@"struct";
         rl.InitAudioDevice();
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name) or std.mem.eql(u8, "dir", d.name)) continue;
@@ -114,7 +114,7 @@ pub const Sounds = struct {
         }
     }
     pub fn unload() void {
-        const info = @typeInfo(Sounds).Struct;
+        const info = @typeInfo(Sounds).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name) or std.mem.eql(u8, "dir", d.name)) continue;
             rl.UnloadSound(@field(Sounds, d.name) );
@@ -135,19 +135,6 @@ pub fn unload() void {
     Sounds.unload();
 }
 
-
-	// pub fn init() Assets {
-	// 	const info = @typeInfo(Assets).Struct;
-	// 	var assets: Assets = undefined;
-	// 	inline for (info.fields) |f| {
-	// 		if (f.type == Animation) {
-	// 			const path = f.name[0..];
-	// 		} else if (f.type == rl.Texture2D) {
-
-	// 		} else unreachable;
-	// 	}
-	// 	return assets;
-	// }
 
 
 pub const Frames = std.ArrayList(rl.Texture2D);
