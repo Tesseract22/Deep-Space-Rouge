@@ -18,13 +18,14 @@ const Vec2 = m.Vec2;
 
 const conf = @import("config.zig");
 const utils = @import("utils.zig");
+const assets = @import("assets.zig");
 
 pub const Manager = esc.SystemManager(&comp.comp_types, &comp.event_types);
 pub var syss: Manager = undefined;
 
 // ------------------------ System Implementation ------------------------
 pub const Movement = struct {
-    pub const set = Signature.initEmpty();
+    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.Vel});
     pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @ptrCast(ptr);
         var it = entities.iterator();
@@ -53,7 +54,7 @@ pub const Movement = struct {
 };
 
 pub const View = struct {
-    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.View, comp.Size});
+    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.View});
     pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @ptrCast(ptr);
         var it = entities.iterator();
@@ -80,6 +81,34 @@ pub const View = struct {
         };
     }
 };
+pub const Animation = struct {
+    pub const set = CompMan.sig_from_types(&.{comp.Pos, assets.AnimationPlayer});
+    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @ptrCast(ptr);
+        var it = entities.iterator();
+        while (it.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+            const player = syss.comp_man.get_comp(assets.AnimationPlayer, e) orelse unreachable;
+
+            if (player.play(dt)) |tex| {
+                utils.DrawTexture(tex.*, pos.pos, null, pos.rot);
+            } else {
+                syss.del_comp(e, assets.AnimationPlayer);
+            }
+        }
+        _ = self;
+    }
+    pub fn system(self: *@This(), a: Allocator) System {
+        return .{
+            .entities = std.AutoHashMap(Entity, void).init(a),
+            .ptr = @alignCast(@ptrCast(self)),
+            .update_fn = update,
+            .set = set,
+        };
+    }
+};
+
 pub const Input = struct {
     pub const set = CompMan.sig_from_types(&.{comp.Input, comp.ShipControl});
     pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
@@ -172,11 +201,11 @@ pub const Collision = struct {
                 // std.log.debug("collisio {} {}", .{e, e2});
                 const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
                 const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
-              
+
                 const dist = m.v2dist(pos.pos, pos2.pos);
                 if (dist < (size + size2) / 2) {
                     syss.add_comp(e, comp.Collision {.other = e2});
-                    // syss.add_comp(e, Collision {.other = e});
+                    syss.add_comp(e2, comp.Collision {.other = e});
                 }
             }
 
@@ -198,6 +227,7 @@ pub const Collision = struct {
 pub const Elastic = struct {
     pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.Vel, comp.Mass, comp.Size, comp.Collision});
     const elastic = 0.6;
+    pub const collision_dmg_mul = 50;
     pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @ptrCast(ptr);
         // std.log.debug("Physic System update", .{});
@@ -221,7 +251,7 @@ pub const Elastic = struct {
             const dist = m.v2dist(pos.pos, pos2.pos);
             const total_m = mass + mass2;
             const wx = mass2 / total_m;
-            const wy = mass / total_m;
+            // const wy = mass / total_m;
             const d = m.v2n(pos.pos - pos2.pos);
             const xs = m.v2dot(vel.vel, d);
             const ys = m.v2dot(vel2.vel, d);
@@ -234,15 +264,56 @@ pub const Elastic = struct {
             // }
 
             vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
-            vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
+            // vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
 
             const diff = (size + size2) / 2 - dist;
             pos.pos += m.splat(0.5 * diff) * d;
-            pos2.pos -= m.splat(0.5 * diff) * d;
+
+            if (syss.comp_man.get_comp(comp.Health, e)) |health| {
+                health.hp -= -s * wx * collision_dmg_mul;
+            }
+            // pos2.pos -= m.splat(0.5 * diff) * d;
 
         }
         _ = dt;
         _ = self;
+    }
+    pub fn system(self: *@This(), a: Allocator) System {
+        return .{
+            .entities = std.AutoHashMap(Entity, void).init(a),
+            .ptr = @alignCast(@ptrCast(self)),
+            .update_fn = update,
+            .set = set,
+        };
+    }
+};
+
+pub const Health = struct {
+    pub const set = CompMan.sig_from_types(&.{comp.Health, comp.Pos});
+    player_e: esc.Entity,
+    player_dead: bool = false,
+    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @alignCast(@ptrCast(ptr));
+        // std.log.debug("Physic System update", .{});
+        // std.log.debug("elastic entities: {}", .{entities.count()});
+        var it = entities.iterator();
+        while (it.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const health = syss.comp_man.get_comp(comp.Health, e) orelse unreachable;
+            if (health.hp <= 0) {
+                const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+                if (health.dead) |dead_anim| {
+                    const anim_e = syss.new_entity();
+                    syss.add_comp(anim_e, pos.*);
+                    syss.add_comp(anim_e, assets.AnimationPlayer {.anim = dead_anim});
+                }
+                syss.free_entity(e);
+                if (self.player_e == e) self.player_dead = true;
+            } else {
+                health.hp += health.regen;
+            }
+        }
+        _ = dt;
     }
     pub fn system(self: *@This(), a: Allocator) System {
         return .{

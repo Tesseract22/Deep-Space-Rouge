@@ -46,7 +46,6 @@ pub fn ComponentManager(comptime comp_types: []const type) type {
             return res;
         }
         pub fn add(self: *Self, e: Entity, comp: anytype) void {
-
             const T = @TypeOf(comp);
             const comp_arr = self.get_arr(T);
             comp_arr.add(e, comp);
@@ -56,7 +55,6 @@ pub fn ComponentManager(comptime comp_types: []const type) type {
             comp_arr.delete(e);
         }
         pub fn delete_entity(self: *Self, e: Entity) void {
-            self.comp_arrs.values();
             inline for (comp_types) |t| {
                 self.delete(e, t);
             }
@@ -65,7 +63,7 @@ pub fn ComponentManager(comptime comp_types: []const type) type {
             inline for (comp_types, 0..) |t, i| {
                 if (t == T) return i;
             }
-            @panic("ComponentArray of type '" ++ @typeName(T) ++ "'is not registered");
+            @compileError("ComponentArray of type '" ++ @typeName(T) ++ "'is not registered");
 
         }
         pub fn get_arr(self: *Self, comptime T: type) *ComponentArray(T) {
@@ -212,8 +210,13 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             return e;
         }
         pub fn free_entity(self: *Self, e: Entity) void {
+            self.signatures[e] = Signature(comp_types).initEmpty();
+            self.update_comp(e);
+            // for (self.systems.items, 0..) |sys, i| {
+            //     std.log.debug("free {} {}", .{i, sys.entities.count()});
+            // }
+            self.fresh_entities.append(e) catch unreachable;
             self.comp_man.delete_entity(e);
-            self.fresh_entities.append(e);
         }
         pub fn add_comp(self: *Self, e: Entity, comp: anytype) void {
             const T = @TypeOf(comp);
@@ -235,6 +238,18 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
                 if (!sys.set.intersectWith(event_sig).eql(empty)) {
                     sys.entities.clearRetainingCapacity();
                 }
+            }
+        }
+        pub fn clear_all(self: *Self) void {
+            for (self.systems.items) |*sys| {
+                sys.entities.clearRetainingCapacity();
+            }
+            self.fresh_entities.clear();
+            for (0..MAX_ENTITIES) |e| {
+                self.fresh_entities.append(@intCast(e)) catch unreachable;
+            }
+            inline for (comp_types) |t| {
+                self.comp_man.get_arr(t).clear();
             }
         }
         // iterate through all registered systems, and check if the entity should be in system

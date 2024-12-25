@@ -169,13 +169,16 @@ pub const AnimationPlayer = struct {
 	et: f32 = 0,
 	anim: *Animation,
 	loop: bool = false,
-	valid: bool = false,
-	pub fn play(self: *AnimationPlayer, t: f32) *rl.Texture2D {
+	pub fn play(self: *AnimationPlayer, t: f32) ?*rl.Texture2D {
 		self.et += t;
 		if (self.et >= 1/self.spd) {
-			self.curr_frame = (self.curr_frame + 1) % self.anim.frames.items.len;
+			self.curr_frame = self.curr_frame + 1;
 			self.et = 0;
 		}
+                if (self.curr_frame >= self.anim.frames.items.len) {
+                    if (self.loop) self.curr_frame = 0
+                    else return null;
+                } 
 		return &self.anim.frames.items[self.curr_frame];
 	}
 	pub fn isLast(self: AnimationPlayer) bool {

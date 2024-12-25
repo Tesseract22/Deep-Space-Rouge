@@ -40,8 +40,7 @@ const system = @import("system.zig");
 const comp = @import("componet.zig");
 const Entity = esc.Entity;
 const syss = &system.syss;
-fn spawn_player() Entity {
-    const e: Entity = syss.new_entity();
+fn spawn_player(e: Entity) void {
     const size = 0.08;
     syss.add_comp(e, comp.Pos {});
     syss.add_comp(e, comp.Vel {
@@ -59,9 +58,8 @@ fn spawn_player() Entity {
     syss.add_comp(e, comp.Input {});
     syss.add_comp(e, comp.Size {.size = size * 2});
     syss.add_comp(e, comp.Mass {.mass = size * size});
-    syss.add_comp(e, comp.Health {.hp = 100, .max = 100});
+    syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .dead = &Assets.Anims.explode_blue});
 
-    return e;
 }
 pub fn spawn_asteriod() Entity {
     const e: Entity = syss.new_entity();
@@ -79,10 +77,11 @@ pub fn spawn_asteriod() Entity {
         .rot_drag = 1,
     });
     var ap = AnimationPlayer{ .anim = &Assets.Anims.asteroid };
-    syss.add_comp(e, comp.View {.tex = @constCast(ap.play(0)), .size = m.splat(size*2)});
+    // std.log.debug("frame {} {}", .{ap.curr_frame, ap.anim.frames.items.len});
+    syss.add_comp(e, comp.View {.tex = @constCast(ap.play(0) orelse unreachable), .size = m.splat(size*2)});
     syss.add_comp(e, comp.Size {.size = size*2});
     syss.add_comp(e, comp.Mass {.mass = size * size * 3});
-    syss.add_comp(e, comp.Health {.hp = 100, .max = 100});
+    syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .dead = ap.anim});
 
     // a.mover = m;
     // a.size = splat(randf(0.25, 0.5));
@@ -103,10 +102,13 @@ pub fn DrawHUD() void {
     const hp_color = rl.RED;
     const hp_bg_color = rl.Color{ .r = 100, .g = 50, .b = 50, .a = 255 };
     const hp_pos = Vec2{ 0, 0.9 };
-    const hp_len = 1;
+    const hp_len = 1.5;
     const hp_hei = 0.005;
+    
     {
-        const hp_comp = syss.comp_man.get_comp(comp.Health, player) orelse unreachable;
+
+        const default = comp.Health {.hp = 0, .max = 100};
+        const hp_comp = syss.comp_man.get_comp(comp.Health, player) orelse &default;
         const perc = (hp_comp.hp / hp_comp.max);
 
         // rl.DrawRectangleV(m.coordn2srl(hp_pos), m.sizen2srl(.{0.2, 0.2}), rl.RED);
@@ -135,6 +137,11 @@ pub fn DrawHUD() void {
     //     DrawRectCentered(mana_pos, .{ mana_len, mana_hei }, mana_bg_color);
     //     DrawRectCentered(mana_pos - Vec2{ mana_len * (1 - perc) / 2, 0 }, .{ mana_len * perc, mana_hei }, mana_color);
     // }
+    if (annouce_t > 0) {
+        annouce_t -= dt;
+        const tw = rl.MeasureText(annoucement, 25);
+        rl.DrawText(annoucement, @divFloor(-tw + conf.screenw, 2), 50, 25, rl.LIGHTGRAY);
+    }
 }
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -145,20 +152,26 @@ pub fn main() !void {
     syss.* = system.Manager.init(a);
     defer syss.deinit();
 
+    player = syss.new_entity();
     var ps = system.Movement {};
     var vs = system.View {};
     var cs = system.ShipControl {};
     var is = system.Input {};
     var coll = system.Collision {};
     var elastic = system.Elastic {};
+    var health = system.Health {.player_e = player};
+    var anim = system.Animation {};
     
     syss.register(is.system(a));
+
     syss.register(cs.system(a));
     syss.register(ps.system(a));
     syss.register(vs.system(a));
+    syss.register(anim.system(a));
     syss.register(coll.system(a));
     syss.register(elastic.system(a));
-    player = spawn_player();
+    syss.register(health.system(a));
+    spawn_player(player);
 
     
     
@@ -188,16 +201,19 @@ pub fn main() !void {
             if (rl.IsKeyPressed(rl.KEY_J)) {
                 _ = spawn_asteriod();
             }
+
             syss.update(dt);
             syss.clear_events();
             DrawHUD();
-            // for (syss.systems.items) |*sys| {
-            //     if (sys.set.isSet(comp.Manager.type_to_bit(comp.Collision))) {
-            //         sys.entities.clearRetainingCapacity();
-            //     }
-            // }
-            // syss.comp_man.get_arr(comp.Collision).clear();
-            
+            if (health.player_dead) {
+                Annouce("You Died! Press [R] to restart", 1);
+                if (rl.IsKeyPressed(rl.KEY_R)) {
+                    syss.clear_all();
+                    player = syss.new_entity();
+                    Annouce("GAME START!", 5);
+                    spawn_player(player);
+                }
+            }
         }
         rl.EndDrawing();
     }

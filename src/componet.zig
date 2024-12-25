@@ -1,6 +1,7 @@
 const rl = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 const m = @import("math.zig");
+const assets = @import("assets.zig");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 
@@ -58,12 +59,13 @@ pub const Health = struct {
     hp: f32,
     max: f32,
     regen: f32 = 0,
+    dead: ?*assets.Animation = null,
 };
 pub const Collision = struct {
     other: esc.Entity,
 };
 
-pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Collision};
+pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Collision, assets.AnimationPlayer};
 pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);
 
