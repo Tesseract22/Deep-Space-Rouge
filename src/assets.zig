@@ -2,6 +2,7 @@ const rl = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 
 const Assets = @This();
+const m = @import("math.zig");
 pub const assetsDir = "assets/";
 pub const Anims = struct {
     pub var asteroid:       Animation = undefined;
@@ -167,8 +168,10 @@ pub const AnimationPlayer = struct {
 	spd: f32 = 10,
 	curr_frame: usize = 0,
 	et: f32 = 0,
-	anim: *Animation,
+	size: ?m.Vec2 = null,
 	loop: bool = false,
+
+	anim: *Animation,
 	pub fn play(self: *AnimationPlayer, t: f32) ?*rl.Texture2D {
 		self.et += t;
 		if (self.et >= 1/self.spd) {

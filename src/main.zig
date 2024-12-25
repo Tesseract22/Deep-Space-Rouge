@@ -42,7 +42,7 @@ const Entity = esc.Entity;
 const syss = &system.syss;
 fn spawn_player(e: Entity) void {
     const size = 0.08;
-    syss.add_comp(e, comp.Pos {});
+    syss.add_comp(e, comp.Pos {.roundabout = true});
     syss.add_comp(e, comp.Vel {
         .drag = 2,
         .rot_drag = 10,
@@ -59,7 +59,9 @@ fn spawn_player(e: Entity) void {
     syss.add_comp(e, comp.Size {.size = size * 2});
     syss.add_comp(e, comp.Mass {.mass = size * size});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .dead = &Assets.Anims.explode_blue});
-
+    syss.add_comp(e, comp.Weapon {.fire_rate = 10});
+    syss.add_comp(e, comp.CollisionSet1{});
+    syss.add_comp(e, comp.Team.friendly);
 }
 pub fn spawn_asteriod() Entity {
     const e: Entity = syss.new_entity();
@@ -81,7 +83,9 @@ pub fn spawn_asteriod() Entity {
     syss.add_comp(e, comp.View {.tex = @constCast(ap.play(0) orelse unreachable), .size = m.splat(size*2)});
     syss.add_comp(e, comp.Size {.size = size*2});
     syss.add_comp(e, comp.Mass {.mass = size * size * 3});
-    syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .dead = ap.anim});
+    syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .dead = ap.anim, .dead_size = m.splat(size*2)});
+    syss.add_comp(e, comp.CollisionSet1{});
+    syss.add_comp(e, comp.Team.neutral);
 
     // a.mover = m;
     // a.size = splat(randf(0.25, 0.5));
@@ -157,10 +161,12 @@ pub fn main() !void {
     var vs = system.View {};
     var cs = system.ShipControl {};
     var is = system.Input {};
-    var coll = system.Collision {};
+    var coll_friendly = system.Collision(comp.CollisionSet1) {};
     var elastic = system.Elastic {};
     var health = system.Health {.player_e = player};
     var anim = system.Animation {};
+    var weapon = system.Weapon {};
+    var bullet = system.Bullet {};
     
     syss.register(is.system(a));
 
@@ -168,9 +174,11 @@ pub fn main() !void {
     syss.register(ps.system(a));
     syss.register(vs.system(a));
     syss.register(anim.system(a));
-    syss.register(coll.system(a));
+    syss.register(weapon.system(a));
+    syss.register(coll_friendly.system(a));
     syss.register(elastic.system(a));
     syss.register(health.system(a));
+    syss.register(bullet.system(a));
     spawn_player(player);
 
     

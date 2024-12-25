@@ -37,9 +37,12 @@ pub const Movement = struct {
             vel.rot *= 1 - vel.rot_drag * dt;
             pos.pos += vel.vel * m.splat(dt);
             pos.rot += vel.rot;
-            
-            pos.pos = m.round_about(pos.pos);
+
+            if (pos.roundabout)
+                pos.pos = m.round_about(pos.pos);
             // std.log.debug("entity: {} {}", .{e, pos.pos});
+            // if (@abs(pos.pos[0]) > 3 or @abs(pos.pos[1]) > 3)
+            //     syss.free_entity(e);
         }
         _ = self;
     }
@@ -92,7 +95,7 @@ pub const Animation = struct {
             const player = syss.comp_man.get_comp(assets.AnimationPlayer, e) orelse unreachable;
 
             if (player.play(dt)) |tex| {
-                utils.DrawTexture(tex.*, pos.pos, null, pos.rot);
+                utils.DrawTexture(tex.*, pos.pos, player.size, pos.rot);
             } else {
                 syss.del_comp(e, assets.AnimationPlayer);
             }
@@ -128,7 +131,7 @@ pub const Input = struct {
             if (d(input.right)) state.turn = .clock;
             if (d(input.forward)) state.forward = true;
             if (d(input.backward)) state.brake = true;
-            // if (d(input.shoot)) state. = true;
+            if (d(input.shoot)) state.shoot = true;
         }
         _ = self;
         _ = dt;
@@ -181,47 +184,49 @@ pub const ShipControl = struct {
         };
     }
 };
-pub const Collision = struct {
-    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.Size});
-    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
-        const self: *@This() = @ptrCast(ptr);
-        // std.log.debug("Physic System update", .{});
-        //std.log.debug("entities: {}", .{entities.count()});
-        var it = entities.iterator();
-        while (it.next()) |entry| {
-            const e = entry.key_ptr.*;
-            const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
-            const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
+pub fn Collision(comptime Set: type) type {
+    return struct {
+        pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.Size, Set});
+        pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+            const self: *@This() = @ptrCast(ptr);
+            // std.log.debug("Physic System update", .{});
+            // std.log.debug("entities: {}", .{entities.count()});
+            var it = entities.keyIterator();
+            @constCast(entities).lockPointers();
+            while (it.next()) |entry| {
+                const e = entry.*;
+                const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+                const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
 
+                var it2 = it;
+                // _ = it2.next() orelse continue;
+                while (it2.next()) |entry2| {
+                    const e2 = entry2.*;
+                    // std.log.debug("collisio {} {}", .{e, e2});
+                    const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
+                    const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
 
-            var it2 = it;
-            // _ = it2.next() orelse continue;
-            while (it2.next()) |entry2| {
-                const e2 = entry2.key_ptr.*;
-                // std.log.debug("collisio {} {}", .{e, e2});
-                const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
-                const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
-
-                const dist = m.v2dist(pos.pos, pos2.pos);
-                if (dist < (size + size2) / 2) {
-                    syss.add_comp(e, comp.Collision {.other = e2});
-                    syss.add_comp(e2, comp.Collision {.other = e});
+                    const dist = m.v2dist(pos.pos, pos2.pos);
+                    if (dist < (size + size2) / 2) {
+                        syss.add_comp2(e, comp.Collision {.other = e2});
+                        syss.add_comp2(e2, comp.Collision {.other = e});
+                    }
                 }
-            }
 
+            }
+            _ = dt;
+            _ = self;
         }
-        _ = dt;
-        _ = self;
-    }
-    pub fn system(self: *@This(), a: Allocator) System {
-        return .{
-            .entities = std.AutoHashMap(Entity, void).init(a),
-            .ptr = @alignCast(@ptrCast(self)),
-            .update_fn = update,
-            .set = set,
-        };
-    }
-};
+        pub fn system(self: *@This(), a: Allocator) System {
+            return .{
+                .entities = std.AutoHashMap(Entity, void).init(a),
+                .ptr = @alignCast(@ptrCast(self)),
+                .update_fn = update,
+                .set = set,
+            };
+        }
+    };
+}
 
 
 pub const Elastic = struct {
@@ -242,10 +247,10 @@ pub const Elastic = struct {
             // _ = it2.next() orelse continue;
             const e2 = (syss.comp_man.get_comp(comp.Collision, e) orelse unreachable).other;
             // std.log.debug("collisio {} {}", .{e, e2});
-            const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse unreachable;
-            const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
-            const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse unreachable).mass;
-            const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
+            const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse continue).mass;
+            const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse continue;
+            const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse continue;
+            const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse continue).size;
 
 
             const dist = m.v2dist(pos.pos, pos2.pos);
@@ -306,6 +311,9 @@ pub const Health = struct {
                     const anim_e = syss.new_entity();
                     syss.add_comp(anim_e, pos.*);
                     syss.add_comp(anim_e, assets.AnimationPlayer {.anim = dead_anim});
+                    if (syss.comp_man.get_comp(comp.Vel, e)) |vel| {
+                        syss.add_comp(anim_e, vel.*);
+                    }
                 }
                 syss.free_entity(e);
                 if (self.player_e == e) self.player_dead = true;
@@ -314,6 +322,102 @@ pub const Health = struct {
             }
         }
         _ = dt;
+    }
+    pub fn system(self: *@This(), a: Allocator) System {
+        return .{
+            .entities = std.AutoHashMap(Entity, void).init(a),
+            .ptr = @alignCast(@ptrCast(self)),
+            .update_fn = update,
+            .set = set,
+        };
+    }
+};
+
+pub const Weapon = struct {
+    pub const set = CompMan.sig_from_types(&.{comp.Weapon, comp.Pos, comp.ShipControl, comp.Team});
+    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @alignCast(@ptrCast(ptr));
+        // std.log.debug("Physic System update", .{});
+        // std.log.debug("elastic entities: {}", .{entities.count()});
+        var it = entities.iterator();
+        while (it.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const control = syss.comp_man.get_comp(comp.ShipControl, e) orelse unreachable;
+            if (!control.state.shoot) continue;
+
+            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
+            const weapon = syss.comp_man.get_comp(comp.Weapon, e) orelse unreachable;
+            if (weapon.cool_down > 0) {
+                weapon.cool_down -= dt;
+            }
+
+            const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+
+            const default_vel = comp.Vel {};
+            const ship_vel = syss.comp_man.get_comp(comp.Vel, e) orelse &default_vel;
+
+            var pos = ship_pos.*;
+            pos.roundabout = false;
+            pos.pos += m.v2rot(m.up, pos.rot) * m.splat(0.1);
+            var vel = comp.Vel {};
+            vel.vel = ship_vel.vel + m.v2rot(m.up, pos.rot) * m.splat(weapon.bullet_spd);
+
+            while (weapon.cool_down <= 0) {
+                weapon.cool_down += 1 / weapon.fire_rate;
+                const bullet = syss.new_entity();
+                syss.add_comp(bullet, pos);
+                syss.add_comp(bullet, vel);
+                syss.add_comp(bullet, comp.View {.tex = &assets.Texs.bullet});
+                syss.add_comp(bullet, comp.Size {.size = 0.02});
+                syss.add_comp(bullet, comp.Bullet {.dmg = 15});
+                syss.add_comp(bullet, comp.CollisionSet1 {});
+                syss.add_comp(bullet, team.*);
+                // syss.add_comp(bullet, comp.Mass {.mass = 0.1});
+            }
+        }
+        _ = self;
+    }
+    pub fn system(self: *@This(), a: Allocator) System {
+        return .{
+            .entities = std.AutoHashMap(Entity, void).init(a),
+            .ptr = @alignCast(@ptrCast(self)),
+            .update_fn = update,
+            .set = set,
+        };
+    }
+};
+
+
+
+pub const Bullet = struct {
+    pub const set = CompMan.sig_from_types(&.{comp.Bullet, comp.Collision, comp.Pos, comp.Team});
+    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @alignCast(@ptrCast(ptr));
+        // std.log.debug("Physic System update", .{});
+        // std.log.debug("elastic entities: {}", .{entities.count()});
+        var it = entities.iterator();
+        while (it.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const bullet = syss.comp_man.get_comp(comp.Bullet, e) orelse unreachable;
+            const collision = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
+            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
+
+            const health = syss.comp_man.get_comp(comp.Health, collision.other) orelse continue;
+            const other_team = syss.comp_man.get_comp(comp.Team, collision.other) orelse continue;
+
+            if (team.* == other_team.*) continue;
+            health.hp -= bullet.dmg;
+
+            const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+            const anim_e = syss.new_entity();
+
+            syss.add_comp(anim_e, pos.*);
+            syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit});
+
+            syss.free_entity(e);
+        }
+        _ = dt;
+        _ = self;
     }
     pub fn system(self: *@This(), a: Allocator) System {
         return .{

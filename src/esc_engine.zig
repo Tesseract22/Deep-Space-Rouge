@@ -224,6 +224,12 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             self.signatures[e].set(ComponentManager(comp_types).type_to_bit(T));
             self.update_comp(e);
         }
+        pub fn add_comp2(self: *Self, e: Entity, comp: anytype) void {
+            const T = @TypeOf(comp);
+            self.comp_man.add(e, comp);
+            self.signatures[e].set(ComponentManager(comp_types).type_to_bit(T));
+            self.update_comp2(e);
+        }
         pub fn del_comp(self: *Self, e: Entity, comptime T: type) void {
             self.comp_man.delete(e, T);
             self.signatures[e].unset(ComponentManager(comp_types).type_to_bit(T));
@@ -257,7 +263,17 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             const sig = self.signatures[e];
             for (self.systems.items) |*sys| {
                 if (sys.set.subsetOf(sig)) {
-                    sys.entities.put(e, void{}) catch unreachable;
+                    _ = sys.entities.getOrPut(e) catch unreachable;
+                } else {
+                    _ = sys.entities.remove(e);
+                }
+            }
+        }
+        fn update_comp2(self: *Self, e: Entity) void {
+            const sig = self.signatures[e];
+            for (self.systems.items) |*sys| {
+                if (sys.set.subsetOf(sig)) {
+                    _ = sys.entities.getKey(e) orelse { sys.entities.put(e, void{}) catch unreachable;};
                 } else {
                     _ = sys.entities.remove(e);
                 }

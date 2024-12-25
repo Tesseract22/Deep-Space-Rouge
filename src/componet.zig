@@ -7,6 +7,11 @@ const assert = std.debug.assert;
 
 const esc = @import("esc_engine.zig");
 
+pub const Team = enum {
+    friendly,
+    enemey,
+    neutral,
+};
 pub const Pos = struct {
     pos: m.Vec2 = .{0, 0},
     rot: f32 = 0,
@@ -30,6 +35,16 @@ pub const Input = struct {
 
     shoot: c_int = rl.KEY_SPACE,
 };
+pub const Weapon = struct {
+    cool_down: f64 = 0,
+
+    fire_rate: f32,
+    mana_cost: f32 = 0,
+    bullet_spd: f32 = 5,
+};
+pub const Bullet = struct {
+    dmg: f32 = 10,
+};
 pub const ShipControl = struct {
     thurst: f32 = 1,
     turn_thurst: f32 = 1,
@@ -43,6 +58,7 @@ pub const ShipControl = struct {
             clock,
             counter,
         } = .static,
+        shoot: bool = false,
 
     };
     pub fn reset_state(self: *ShipControl) void {
@@ -60,12 +76,16 @@ pub const Health = struct {
     max: f32,
     regen: f32 = 0,
     dead: ?*assets.Animation = null,
+    dead_size: ?m.Vec2 = null,
 };
 pub const Collision = struct {
     other: esc.Entity,
 };
+pub const CollisionSet1 = struct {};
+pub const CollisionSet2 = struct {};
 
-pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Collision, assets.AnimationPlayer};
+
+pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Collision, assets.AnimationPlayer, Weapon, Bullet, CollisionSet1, CollisionSet2, Team};
 pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);
 
