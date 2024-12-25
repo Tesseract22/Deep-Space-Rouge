@@ -170,7 +170,6 @@ pub const AnimationPlayer = struct {
 	anim: *Animation,
 	loop: bool = false,
 	valid: bool = false,
-	size: ?@Vector(2, f32) = null,
 	pub fn play(self: *AnimationPlayer, t: f32) *rl.Texture2D {
 		self.et += t;
 		if (self.et >= 1/self.spd) {

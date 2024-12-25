@@ -28,6 +28,9 @@ pub fn srl2sizen(v: rl.Vector2) Vec2 {
 pub fn srl2coord(v: rl.Vector2) Vec2 {
     return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2) / screenSizef - splat(1.0);
 }
+pub fn size2s(s: f32) f32 {
+    return s * screenSizef[0] * 0.5;
+}
 pub fn sizen2srl(v: Vec2) rl.Vector2 {
     return v2rl(v * screenSizef * splat(0.5));
 }

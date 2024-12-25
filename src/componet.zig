@@ -17,7 +17,10 @@ pub const Vel = struct {
     drag: f32 = 0,
     rot_drag: f32 = 0,
 };
-pub const View = *rl.Texture2D;
+pub const View = struct {
+    tex: *rl.Texture2D,
+    size: ?m.Vec2 = null,
+};
 pub const Input = struct {
     forward: c_int = rl.KEY_W,
     backward: c_int = rl.KEY_S,
@@ -45,8 +48,23 @@ pub const ShipControl = struct {
         self.state = .{};
     }
 };
+pub const Size = struct {
+    size: f32,
+};
+pub const Mass = struct {
+    mass: f32,
+};
+pub const Health = struct {
+    hp: f32,
+    max: f32,
+    regen: f32 = 0,
+};
+pub const Collision = struct {
+    other: esc.Entity,
+};
 
-pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input};
+pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Collision};
+pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);
 
 

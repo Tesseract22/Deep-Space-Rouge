@@ -19,11 +19,11 @@ const Vec2 = m.Vec2;
 const conf = @import("config.zig");
 const utils = @import("utils.zig");
 
-pub const Manager = esc.SystemManager(&comp.comp_types);
+pub const Manager = esc.SystemManager(&comp.comp_types, &comp.event_types);
 pub var syss: Manager = undefined;
 
 // ------------------------ System Implementation ------------------------
-pub const Physic = struct {
+pub const Movement = struct {
     pub const set = Signature.initEmpty();
     pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @ptrCast(ptr);
@@ -53,19 +53,19 @@ pub const Physic = struct {
 };
 
 pub const View = struct {
-    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.View});
+    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.View, comp.Size});
     pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @ptrCast(ptr);
-        //std.log.debug("View System update", .{});
-        //std.log.debug("entities: {}", .{entities.count()});
         var it = entities.iterator();
         while (it.next()) |entry| {
             const e = entry.key_ptr.*;
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const view = syss.comp_man.get_comp(comp.View, e) orelse unreachable;
 
-            utils.DrawTexture(view.*.*, pos.pos, null, pos.rot);
-            // rl.DrawCircleV(m.coordn2srl(pos.pos), view.radius, rl.WHITE)
+            utils.DrawTexture(view.tex.*, pos.pos, view.size, pos.rot);
+            // if (syss.comp_man.get_comp(comp.Size, e)) |size| {
+            //     rl.DrawCircleLinesV(m.coordn2srl(pos.pos), m.size2s(size.size/2), rl.WHITE);
+            // }
             // std.log.debug("entity: {} {} {}", .{e, pos.pos, view.radius});
         }
         _ = self;
@@ -152,6 +152,106 @@ pub const ShipControl = struct {
         };
     }
 };
+pub const Collision = struct {
+    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.Size});
+    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @ptrCast(ptr);
+        // std.log.debug("Physic System update", .{});
+        //std.log.debug("entities: {}", .{entities.count()});
+        var it = entities.iterator();
+        while (it.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+            const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
 
+
+            var it2 = it;
+            // _ = it2.next() orelse continue;
+            while (it2.next()) |entry2| {
+                const e2 = entry2.key_ptr.*;
+                // std.log.debug("collisio {} {}", .{e, e2});
+                const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
+                const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
+              
+                const dist = m.v2dist(pos.pos, pos2.pos);
+                if (dist < (size + size2) / 2) {
+                    syss.add_comp(e, comp.Collision {.other = e2});
+                    // syss.add_comp(e, Collision {.other = e});
+                }
+            }
+
+        }
+        _ = dt;
+        _ = self;
+    }
+    pub fn system(self: *@This(), a: Allocator) System {
+        return .{
+            .entities = std.AutoHashMap(Entity, void).init(a),
+            .ptr = @alignCast(@ptrCast(self)),
+            .update_fn = update,
+            .set = set,
+        };
+    }
+};
+
+
+pub const Elastic = struct {
+    pub const set = CompMan.sig_from_types(&.{comp.Pos, comp.Vel, comp.Mass, comp.Size, comp.Collision});
+    const elastic = 0.6;
+    pub fn update(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @ptrCast(ptr);
+        // std.log.debug("Physic System update", .{});
+        // std.log.debug("elastic entities: {}", .{entities.count()});
+        var it = entities.iterator();
+        while (it.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const vel = syss.comp_man.get_comp(comp.Vel, e) orelse unreachable;
+            const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+            const mass = (syss.comp_man.get_comp(comp.Mass, e) orelse unreachable).mass;
+            const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
+            // _ = it2.next() orelse continue;
+            const e2 = (syss.comp_man.get_comp(comp.Collision, e) orelse unreachable).other;
+            // std.log.debug("collisio {} {}", .{e, e2});
+            const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse unreachable;
+            const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
+            const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse unreachable).mass;
+            const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
+
+
+            const dist = m.v2dist(pos.pos, pos2.pos);
+            const total_m = mass + mass2;
+            const wx = mass2 / total_m;
+            const wy = mass / total_m;
+            const d = m.v2n(pos.pos - pos2.pos);
+            const xs = m.v2dot(vel.vel, d);
+            const ys = m.v2dot(vel2.vel, d);
+            const s = xs - ys;
+            if (s >= 0) continue;
+            // rl.PlaySound(Assets.Sounds.collide);
+            // if (dmg) {
+            //     y.hp -= wy * (-s) * 10;
+            //     x.hp -= wx * (-s) * 10;
+            // }
+
+            vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
+            vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
+
+            const diff = (size + size2) / 2 - dist;
+            pos.pos += m.splat(0.5 * diff) * d;
+            pos2.pos -= m.splat(0.5 * diff) * d;
+
+        }
+        _ = dt;
+        _ = self;
+    }
+    pub fn system(self: *@This(), a: Allocator) System {
+        return .{
+            .entities = std.AutoHashMap(Entity, void).init(a),
+            .ptr = @alignCast(@ptrCast(self)),
+            .update_fn = update,
+            .set = set,
+        };
+    }
+};
 
 

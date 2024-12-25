@@ -114,11 +114,20 @@ pub fn ComponentArray(comptime T: type) type {
             self.entity_to_comp.deinit();
             self.comp_to_entity.deinit();
         }
+        pub fn clear(self: *Self) void {
+            self.comps.clear();
+            self.entity_to_comp.clearRetainingCapacity();
+            self.comp_to_entity.clearRetainingCapacity();
+        }
         pub fn add(self: *Self, e: Entity, comp: T) void {
             assert(self.comps.len != self.comps.capacity());
-            self.entity_to_comp.putNoClobber(e, self.comps.len) catch unreachable;
-            self.comp_to_entity.putNoClobber(self.comps.len, e) catch unreachable;
-            self.comps.append(comp) catch unreachable;
+            const gop = self.entity_to_comp.getOrPut(e) catch unreachable;
+            if (!gop.found_existing) {
+                gop.value_ptr.* = self.comps.len;
+                self.comp_to_entity.putNoClobber(self.comps.len, e) catch unreachable;
+                self.comps.append(comp) catch unreachable;
+            }
+
         }
         // does nothing if entity does not exist
         pub fn delete(self: *Self, e: Entity) void {
@@ -158,10 +167,17 @@ pub fn System(comptime comp_types: []const type) type {
         }
     };
 }
-pub fn SystemManager(comptime comp_types: []const type) type {
+pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []const type) type {
     return struct {
         const Self = @This();
         const MAX_ENTITIES = 1024;
+        const event_sig = blk: {
+            var sig = Signature(comp_types).initEmpty();
+            for (even_types) |t| {
+                sig.set(ComponentManager(comp_types).type_to_bit(t));
+            }
+            break :blk sig;
+        };
         systems: std.ArrayList(System(comp_types)),
         fresh_entities: std.BoundedArray(Entity, MAX_ENTITIES),
         signatures: [MAX_ENTITIES]Signature(comp_types),
@@ -207,8 +223,19 @@ pub fn SystemManager(comptime comp_types: []const type) type {
         }
         pub fn del_comp(self: *Self, e: Entity, comptime T: type) void {
             self.comp_man.delete(e, T);
-            self.signatures[e].remove(ComponentManager(comp_types).type_to_bit(T));
+            self.signatures[e].unset(ComponentManager(comp_types).type_to_bit(T));
             self.update_comp(e);
+        }
+        pub fn clear_events(self: *Self) void {
+            const empty = Signature(comp_types).initEmpty();
+            inline for (even_types) |t| {
+                self.comp_man.get_arr(t).clear();
+            }
+            for (self.systems.items) |*sys| {
+                if (!sys.set.intersectWith(event_sig).eql(empty)) {
+                    sys.entities.clearRetainingCapacity();
+                }
+            }
         }
         // iterate through all registered systems, and check if the entity should be in system
         fn update_comp(self: *Self, e: Entity) void {

@@ -35,3 +35,7 @@ pub fn DrawTextureTint(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32, t
         rl.DrawCircleLinesV(pos, @max(dw, dh) / 2, rl.RED); // debug
 
 }
+
+pub inline fn DrawRectCentered(pos: Vec2, size: Vec2, c: rl.Color) void {
+    rl.DrawRectangleV(m.coordn2srl(pos - size / m.splat(2.0)), m.sizen2srl(size), c);
+}
