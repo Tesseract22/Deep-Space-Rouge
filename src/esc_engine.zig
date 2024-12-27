@@ -69,6 +69,7 @@ pub fn ComponentManager(comptime comp_types: []const type) type {
         pub fn get_arr(self: *Self, comptime T: type) *ComponentArray(T) {
             return &self.comp_arrs[comptime get_idx(T)];
         }
+        
         // pub fn register(self: *Self, arr: anytype) void {
         //     const T = @TypeOf(arr);
         //     const info = @typeInfo(T);
@@ -109,10 +110,16 @@ pub fn ComponentArray(comptime T: type) type {
             };
         }
         pub fn deinit(self: *Self) void {
+            self.clear();
             self.entity_to_comp.deinit();
             self.comp_to_entity.deinit();
         }
         pub fn clear(self: *Self) void {
+            if (@hasDecl(T, "deinit")) {
+                for (self.comps.slice()) |*comp| {
+                    comp.deinit();
+                }
+            }
             self.comps.clear();
             self.entity_to_comp.clearRetainingCapacity();
             self.comp_to_entity.clearRetainingCapacity();
@@ -136,6 +143,9 @@ pub fn ComponentArray(comptime T: type) type {
             const last_entity = (self.comp_to_entity.fetchRemove(last_idx) orelse unreachable).value;
 
             // swap
+            if (@hasDecl(T, "deinit")) {
+                self.comps.slice()[comp_idx].deinit();
+            }
             _ = self.comps.swapRemove(comp_idx);
             if (comp_idx != last_idx) {
                 self.entity_to_comp.put(last_entity, comp_idx) catch unreachable;

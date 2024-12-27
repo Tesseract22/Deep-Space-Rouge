@@ -8,6 +8,7 @@ const AnimationPlayer = Assets.AnimationPlayer;
 const Animation = Assets.Animation;
 const Vec2 = m.Vec2;
 const Vec2i = m.Vec2i;
+const Buff = comp.BuffHolder.Buff;
 
 
 
@@ -52,17 +53,19 @@ fn spawn_player(e: Entity) void {
     syss.add_comp(e, comp.Input {});
     syss.add_comp(e, comp.Size {.size = size * 2});
     syss.add_comp(e, comp.Mass {.mass = size * size});
-    syss.add_comp(e, comp.Health {.hp = 100, .max = 100});
+    syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .regen = 1});
     syss.add_comp(e, comp.DeadAnimation {.dead = &Assets.Anims.explode_blue, .dead_size = null});
     syss.add_comp(e, comp.Weapon {
         .fire_rate = 10, 
         .sound = &Assets.Sounds.shoot, 
-        .bullet = .{ .dmg = 15, .sound = &Assets.Sounds.bullet_hit, .tex = &Assets.Texs.bullet, .size = 0.10, }
+        .bullet = .{ .dmg = 15, .sound = &Assets.Sounds.bullet_hit, .tex = &Assets.Texs.bullet, .size = 0.10, },
+        .effects = comp.Weapon.ShootEffects.init(a),
     });
     syss.add_comp(e, comp.CollisionSet1{});
     syss.add_comp(e, comp.Team.friendly);
     syss.add_comp(e, comp.Collector {.attract_radius = 0.2, .collect_radius = 0.05});
     syss.add_comp(e, comp.Exp {.next_lvl = 50});
+    syss.add_comp(e, comp.BuffHolder.init(a));
 }
 fn spawn_hunter() Entity {
     const e: Entity = syss.new_entity();
@@ -84,13 +87,49 @@ fn spawn_hunter() Entity {
     syss.add_comp(e, comp.Mass {.mass = size * size});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, });
     syss.add_comp(e, comp.DeadAnimation { .dead = &Assets.Anims.explode_blue});
-    syss.add_comp(e, comp.Weapon {
+    var weapon_comp = comp.Weapon {
         .cool_down = 2,
         .fire_rate = 0.5, 
-        .bullet_spd = 2,
+        .bullet_spd = 1,
         .sound = &Assets.Sounds.shoot, 
-        .bullet = .{.dmg = 35, .sound = &Assets.Sounds.bullet_hit, .size = 0.1, .tex = &Assets.Texs.bullet_fire}
-    });
+        .bullet = .{.dmg = 35, .sound = &Assets.Sounds.bullet_hit, .size = 0.1, .tex = &Assets.Texs.bullet_fire},
+        .effects = comp.Weapon.ShootEffects.init(a),
+    };
+    const triple_shot = struct {
+        pub fn shoot(
+            weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
+            vel: comp.Vel, pos: comp.Pos, team: comp.Team,
+            idx: isize) void 
+        {
+            _ = effect;
+            const prev = weapon.get_effect(idx - 1) orelse return;
+            var pos2 = pos;
+            var vel2 = vel;
+            prev.shoot_fn(weapon, prev, vel, pos, team, idx - 1);
+
+            vel2.vel = m.v2rot(vel.vel, rl.PI / 12);
+            pos2.rot = pos.rot + rl.PI / 12;
+            prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
+
+            vel2.vel = m.v2rot(vel.vel, -rl.PI / 12);
+            pos2.rot = pos.rot  - rl.PI / 12;
+            prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
+            // /prev.(w2, dir, spd, pos, idx - 1);
+            // w2.prev_fire = prev_fire;
+
+            // w2.mana_cost_m = 0;
+            // old_shoot(w2, dir + rl.PI / 12, v2rot(spd, rl.PI / 12), pos, idx - 1);
+            // w2.prev_fire = prev_fire;
+
+            // w2.mana_cost_m = mana_cost_m * 2;
+            // old_shoot(w2, dir - rl.PI / 12, v2rot(spd, -rl.PI / 12), pos, idx - 1);
+            // w2.mana_cost_m = mana_cost_m;
+
+            // std.debug.assert(previous != null);
+        }
+    };
+    weapon_comp.effects.append(comp.Weapon.ShootEffect {.shoot_fn = triple_shot.shoot, .data = undefined}) catch unreachable;
+    syss.add_comp(e, weapon_comp);
     syss.add_comp(e, comp.Ai {.state = .{ .hunter = .{}}});
     syss.add_comp(e, comp.CollisionSet1{});
     syss.add_comp(e, comp.Team.enemey);
@@ -241,14 +280,19 @@ pub fn main() !void {
     var dead_anim = system.DeadAnimation {};
     var gem_dropper = system.GemDropper {};
     var collect = system.Collector {};
+    var buff = system.Buff {};
 
 
     syss.register(system.get(&input, a));
     syss.register(system.get(&ai, a));
     syss.register(system.get(&ship_control, a));
     syss.register(system.get(&movement, a));
+
     syss.register(system.get(&view, a));
     syss.register(system.get(&anim, a));
+
+    syss.register(system.get(&buff, a));
+
     syss.register(system.get(&weapon, a));
     syss.register(system.get(&collision, a));
     syss.register(system.get(&collect, a));
@@ -305,6 +349,11 @@ pub fn main() !void {
                     exp.next_lvl += 50;
                     rl.PlaySound(Assets.Sounds.level_up);
                     Annouce("Level Up! (Open Inventory With [I])", 2);
+
+                    var spd_buff = Buff.init_simple(comp.ShipControl, "thurst", 2.5, 5);
+                    var fire_rate_buff = Buff.init_simple(comp.Weapon, "fire_rate", 1, 5);
+                    system.Buff.try_apply(player, &spd_buff);
+                    system.Buff.try_apply(player, &fire_rate_buff);
                 }
             }
             if (dead.player_dead) {

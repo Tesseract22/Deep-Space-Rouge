@@ -44,15 +44,56 @@ pub const Weapon = struct {
     fire_rate: f32,
     mana_cost: f32 = 0,
     bullet_spd: f32 = 5,
+    bullet: Bullet,
+    // split: u8 = 1,
+    // bullet_count: u8 = 1,
+    base_effect: ShootEffect = .{.data = undefined, .shoot_fn = basic_base_shoot,},
+    effects: ShootEffects,
 
     sound: ?*rl.Sound = null,
-    bullet: Bullet,
+    pub fn get_effect(weapon: *Weapon, idx: isize) ?*ShootEffect {
+        if (idx < -1) return null;
+        if (idx == -1) return &weapon.base_effect;
+        return &weapon.effects.items[@intCast(idx)];
+    }
+    pub fn basic_base_shoot(
+        weapon: *Weapon, effect: *ShootEffect, 
+        vel: Vel, pos: Pos, team: Team,
+        idx: isize) void 
+    {
+        _ = effect;
+        _ = idx;
+        const bullet = syss.new_entity();
+        syss.add_comp(bullet, pos);
+        syss.add_comp(bullet, vel);
+        syss.add_comp(bullet, View {.tex = weapon.bullet.tex, .size = m.splat(weapon.bullet.size)});
+        syss.add_comp(bullet, Size {.size = weapon.bullet.size});
+        syss.add_comp(bullet, weapon.bullet);
+        syss.add_comp(bullet, CollisionSet1 {});
+        syss.add_comp(bullet, team);
+    }
+    pub fn deinit(self: *Weapon) void {
+        self.effects.deinit();
+    }
+    pub const ShootEffect = struct {
+
+        pub const ShootFn = fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void;
+        shoot_fn: *const fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void,
+        data: Data,
+        const Data = union {
+
+        };
+    };
+    pub const ShootEffects = std.ArrayList(ShootEffect);
 };
 pub const Bullet = struct {
     size: f32 = 0.02,
     tex: *rl.Texture,
     dmg: f32 = 10,
     sound: ?*rl.Sound = null,
+    pub const OnhitFn = fn (*Weapon, *Bullet, esc.Entity, usize) void;
+    pub const Onhits = std.ArrayList(*const OnhitFn);
+
 };
 pub const ShipControl = struct {
     thurst: f32 = 1,
@@ -122,7 +163,7 @@ pub const Ai = struct {
             const me_pos = syss.comp_man.get_comp(Pos, me) orelse return;
             const player_pos = syss.comp_man.get_comp(Pos, player) orelse return;
             control.turn_to_pos(me_pos.*, player_pos.pos);
-            
+
             control.state.shoot = true;
             control.state.forward = true;
         }
@@ -212,8 +253,41 @@ pub const Exp = struct {
     next_lvl: usize,
 };
 
+pub const BuffHolder = struct {
+    buffs: std.ArrayList(Buff),
+    pub const Buff = struct {
+        duration: f32,
+        apply: *const fn (self: *Buff, e: esc.Entity) void,
+        expire: *const fn (self: *Buff, e: esc.Entity) void,
+        fresh: bool = true,
+        data: union(enum) {
+            value: f32,
+        },
+        pub fn init_simple(comptime T: type, comptime field: []const u8, comptime value: f32, duration: f32) Buff {
+            if (!@hasField(T, field)) @compileError("Trying to buff '" ++ field ++ "', which does not exist in '" ++ @typeName(T) ++ "'.");
+            const tmp = struct {
+                pub fn apply(self: *Buff, e: esc.Entity) void {
+                    const comp = syss.comp_man.get_comp(T, e) orelse return;
+                    @field(comp, field) += self.data.value;
+                }
+                pub fn expire(self: *Buff, e: esc.Entity) void {
+                    const comp = syss.comp_man.get_comp(T, e) orelse return;
+                    @field(comp, field) -= self.data.value;
+                }
+            };
+            return Buff {.duration = duration, .apply = tmp.apply, .expire = tmp.expire, .data = .{.value = value}};
+        }
+    };
+    pub fn init(a: Allocator) BuffHolder {
+        return .{.buffs = std.ArrayList(Buff).init(a) };
+    }
+    pub fn deinit(self: *BuffHolder) void {
+        self.buffs.deinit();
+    }
+
+};
 pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Dead, DeadAnimation, Exp, Collision, assets.AnimationPlayer, Weapon, Bullet, 
-    CollisionSet1, CollisionSet2, Team, Ai, GemDropper, Collectible, Collector};
+    CollisionSet1, CollisionSet2, Team, Ai, GemDropper, Collectible, Collector, BuffHolder};
 pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);
 

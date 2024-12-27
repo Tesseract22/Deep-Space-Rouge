@@ -308,11 +308,10 @@ pub const Health = struct {
                 // }
                 syss.add_comp(e, comp.Dead {});
             } else {
-                health.hp += health.regen;
+                health.hp += health.regen * dt;
             }
         }
         _ = self;
-        _ = dt;
     }
 
 };
@@ -440,19 +439,20 @@ pub const Weapon = struct {
             pos.pos += m.v2rot(m.up, pos.rot) * m.splat(0.1);
             var vel = comp.Vel {};
             vel.vel = ship_vel.vel + m.v2rot(m.up, pos.rot) * m.splat(weapon.bullet_spd);
-
+            const len = weapon.effects.items.len;
             while (weapon.cool_down <= 0) {
                 weapon.cool_down += 1 / weapon.fire_rate;
-                const bullet = syss.new_entity();
-                syss.add_comp(bullet, pos);
-                syss.add_comp(bullet, vel);
-                syss.add_comp(bullet, comp.View {.tex = weapon.bullet.tex, .size = m.splat(weapon.bullet.size)});
-                syss.add_comp(bullet, comp.Size {.size = weapon.bullet.size});
-                syss.add_comp(bullet, weapon.bullet);
-                syss.add_comp(bullet, comp.CollisionSet1 {});
-                syss.add_comp(bullet, team.*);
+                if (len == 0) {
+                    // std.log.debug("here", .{});
+                    weapon.base_effect.shoot_fn(weapon, undefined, vel, pos, team.*, -1);
+                } else {
+                    const idx = weapon.effects.items.len - 1;
+                    const effect = &weapon.effects.items[idx];
+                    effect.shoot_fn(weapon, effect, vel, pos, team.*, @intCast(idx));
+                }
                 if (weapon.sound) |sound|
                     rl.PlaySound(sound.*);
+
             }
         }
         _ = self;
@@ -551,4 +551,38 @@ pub const Collector = struct {
     }
 };
 
-
+pub const Buff = struct {
+    pub const set = .{CompMan.sig_from_types(&.{comp.BuffHolder})};
+    pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @alignCast(@ptrCast(ptr));
+        // std.log.debug("Physic System update", .{});
+        //std.log.debug("collector entities: {}", .{entities[0].count(), });
+        // std.log.debug("collectible entities: {}", .{entities[1].count(), });
+        var it = entities[0].keyIterator();
+        while (it.next()) |entry| {
+            const e = entry.*;
+            const buffs = syss.comp_man.get_comp(comp.BuffHolder, e) orelse unreachable;
+            
+            var i: usize = 0;
+            while (i < buffs.buffs.items.len) {
+                const buff = &buffs.buffs.items[i];
+                if (buff.fresh) {
+                    buff.apply(buff, e);
+                    buff.fresh = false;
+                }
+                if (buff.duration <= 0) {
+                    buff.expire(buff, e);
+                    _ = buffs.buffs.swapRemove(i);
+                } else  {
+                    buff.duration -= dt;
+                    i += 1;
+                }
+            }
+        }
+        _ = self;
+    }
+    pub fn try_apply(e: esc.Entity, new_buff: *comp.BuffHolder.Buff) void {
+        const holder = syss.comp_man.get_comp(comp.BuffHolder, e) orelse return;
+        holder.buffs.append(new_buff.*) catch unreachable;
+    }
+};
