@@ -4,6 +4,7 @@ const Assets = @import("assets.zig");
 const m = @import("math.zig");
 const conf = @import("config.zig");
 const utils = @import("utils.zig");
+const inventory = @import("inventory.zig");
 const AnimationPlayer = Assets.AnimationPlayer;
 const Animation = Assets.Animation;
 const Vec2 = m.Vec2;
@@ -56,9 +57,9 @@ fn spawn_player(e: Entity) void {
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .regen = 1});
     syss.add_comp(e, comp.DeadAnimation {.dead = &Assets.Anims.explode_blue, .dead_size = null});
     syss.add_comp(e, comp.Weapon {
-        .fire_rate = 10, 
+        .fire_rate = 5, 
         .sound = &Assets.Sounds.shoot, 
-        .bullet = .{ .dmg = 15, .sound = &Assets.Sounds.bullet_hit, .tex = &Assets.Texs.bullet, .size = 0.10, },
+        .bullet = .{ .dmg = 30, .sound = &Assets.Sounds.bullet_hit, .tex = &Assets.Texs.bullet, .size = 0.10, },
         .effects = comp.Weapon.ShootEffects.init(a),
     });
     syss.add_comp(e, comp.CollisionSet1{});
@@ -342,6 +343,7 @@ pub fn main() !void {
             syss.update(dt);
             syss.clear_events();
             DrawHUD();
+            inventory.DrawItemMenu();
             // check for level up
             if (syss.comp_man.get_comp(comp.Exp, player)) |exp| {
                 while (exp.curr_exp >= exp.next_lvl) {

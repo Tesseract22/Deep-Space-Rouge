@@ -2,6 +2,7 @@ const rl = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 const m = @import("math.zig");
 const assets = @import("assets.zig");
+const conf = @import("config.zig");
 const Allocator = std.mem.Allocator;
 const assert = std.debug.assert;
 const sys = @import("system.zig");
@@ -252,6 +253,7 @@ pub const Exp = struct {
     curr_exp: usize = 0,
     next_lvl: usize,
 };
+
 
 pub const BuffHolder = struct {
     buffs: std.ArrayList(Buff),
