@@ -155,13 +155,13 @@ pub fn ComponentArray(comptime T: type) type {
 pub fn System(comptime comp_types: []const type) type {
     return struct {
         const Self = @This();
-        entities: std.AutoHashMap(Entity, void),
+        entities: []std.AutoHashMap(Entity, void),
         ptr: *anyopaque,
-        set: Signature(comp_types),
-        update_fn: *const fn(ptr: *anyopaque, entities: *const std.AutoHashMap(Entity, void), dt: f32) void,
+        set: []const Signature(comp_types),
+        update_fn: *const fn(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void,
 
         pub fn update(self: Self, dt: f32) void {
-            self.update_fn(self.ptr, &self.entities, dt);
+            self.update_fn(self.ptr, self.entities, dt);
         }
     };
 }
@@ -195,7 +195,10 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
         }
         pub fn deinit(self: *Self) void {
             for (self.systems.items) |*sys| {
-                sys.entities.deinit();
+                for (sys.entities) |*es| {
+                    es.deinit();
+                }
+                self.systems.allocator.free(sys.entities);
             }
             self.systems.deinit();
             self.comp_man.deinit();
@@ -241,14 +244,19 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
                 self.comp_man.get_arr(t).clear();
             }
             for (self.systems.items) |*sys| {
-                if (!sys.set.intersectWith(event_sig).eql(empty)) {
-                    sys.entities.clearRetainingCapacity();
+                for (sys.entities, sys.set) |*es, set| {
+                    if (!set.intersectWith(event_sig).eql(empty)) {
+                        es.clearRetainingCapacity();
+                    }
                 }
+                
             }
         }
         pub fn clear_all(self: *Self) void {
             for (self.systems.items) |*sys| {
-                sys.entities.clearRetainingCapacity();
+                for (sys.entities) |*es| {
+                    es.clearRetainingCapacity();
+                }
             }
             self.fresh_entities.clear();
             for (0..MAX_ENTITIES) |e| {
@@ -262,20 +270,12 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
         fn update_comp(self: *Self, e: Entity) void {
             const sig = self.signatures[e];
             for (self.systems.items) |*sys| {
-                if (sys.set.subsetOf(sig)) {
-                    _ = sys.entities.getOrPut(e) catch unreachable;
-                } else {
-                    _ = sys.entities.remove(e);
-                }
-            }
-        }
-        fn update_comp2(self: *Self, e: Entity) void {
-            const sig = self.signatures[e];
-            for (self.systems.items) |*sys| {
-                if (sys.set.subsetOf(sig)) {
-                    _ = sys.entities.getKey(e) orelse { sys.entities.put(e, void{}) catch unreachable;};
-                } else {
-                    _ = sys.entities.remove(e);
+                for (sys.entities, sys.set) |*es, set| {
+                    if (set.subsetOf(sig)) {
+                        _ = es.getKey(e) orelse { es.put(e, void{}) catch unreachable;};
+                    } else {
+                        _ = es.remove(e);
+                    }
                 }
             }
         }
@@ -288,4 +288,6 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
 
     };
 }
+
+
 

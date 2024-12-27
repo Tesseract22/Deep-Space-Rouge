@@ -1,5 +1,6 @@
 const rl = @cImport(@cInclude("raylib.h"));
 const conf = @import("config.zig");
+const std = @import("std");
 pub const Vec2 = @Vector(2, f32);
 pub const Vec2i = @Vector(2, c_int);
 
@@ -76,4 +77,28 @@ pub fn round_about(pos: Vec2) Vec2 {
     const screen_rang = Vec2{ 2 * conf.screenwf / conf.screenhf, 2 };
     const half = screen_rang / splat(2);
     return @mod(pos + half, screen_rang) - half;
+}
+
+pub fn diffClock(from: f32, to: f32) f32 {
+    const p = 2 * rl.PI; // period
+    var clock: f32 = undefined;
+    var counter: f32 = undefined;
+    if (to > from) {
+        clock = to - from;
+        counter = from - to + p;
+    } else {
+        clock = to - from + p;
+        counter = from - to;
+    }
+    return if (clock < counter) clock else -counter;
+}
+
+pub var randGen: std.Random.Xoshiro256 = undefined;
+pub fn randf(min: f32, max: f32) f32 {
+    const range = max - min;
+    return randGen.random().float(f32) * range + min;
+}
+
+pub fn randSign() f32 {
+    return if (randGen.random().float(f32) > 0.5) 1 else -1;
 }
