@@ -245,7 +245,7 @@ pub const Elastic = struct {
         var it = entities[0].iterator();
         while (it.next()) |entry| {
             const e = entry.key_ptr.*;
-            //std.log.debug("elastic e: {}", .{e});
+            // std.log.debug("elastic e: {}", .{e});
             const vel = syss.comp_man.get_comp(comp.Vel, e) orelse unreachable;
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const mass = (syss.comp_man.get_comp(comp.Mass, e) orelse unreachable).mass;
@@ -268,18 +268,19 @@ pub const Elastic = struct {
             const xs = m.v2dot(vel.vel, d);
             const ys = m.v2dot(vel2.vel, d);
             const s = xs - ys;
-            if (s >= 0) continue;
             // rl.PlaySound(Assets.Sounds.collide);
             // if (dmg) {
             //     y.hp -= wy * (-s) * 10;
             //     x.hp -= wx * (-s) * 10;
             // }
-
-            vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
+            // std.log.debug("elastic e: {}", .{e});
             // vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
-
             const diff = (size + size2) / 2 - dist;
             pos.pos += m.splat(0.5 * diff) * d;
+
+            if (s >= 0) continue;
+            vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
+
 
             if (syss.comp_man.get_comp(comp.Health, e)) |health| {
                 health.hp -= -s * wx * collision_dmg_mul;
@@ -314,7 +315,7 @@ pub const Health = struct {
                 //     }
                 // }
                 syss.add_comp(e, comp.Dead {});
-            } else {
+            } else if (health.hp < health.max) {
                 health.hp += health.regen * dt;
             }
         }
@@ -430,7 +431,7 @@ pub const Weapon = struct {
             weapon.cool_down -= dt;
         }
         if (!control.state.shoot) return;
-       
+
         const default_vel = comp.Vel {};
         const ship_vel = syss.comp_man.get_comp(comp.Vel, e) orelse &default_vel;
 
