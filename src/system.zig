@@ -50,7 +50,7 @@ pub const Movement = struct {
             vel.vel *= m.splat(1 - vel.drag * dt);
             vel.rot *= 1 - vel.rot_drag * dt;
             pos.pos += vel.vel * m.splat(dt);
-            pos.rot += vel.rot;
+            pos.rot += vel.rot * dt;
 
             if (pos.roundabout)
                 pos.pos = m.round_about(pos.pos);
@@ -173,6 +173,11 @@ pub const ShipControl = struct {
             vel.rot += rot_acc * control.turn_thurst * dt;
             if (state.forward) {
                 vel.vel += m.v2rot(m.up, pos.rot) * m.splat(control.thurst * dt);
+                if (control.thurst_anim) |*anim| {
+                    const thurst_pos = pos.pos - m.v2rot(m.up, pos.rot) * m.splat(0.175);
+                    const tex = anim.play(dt) orelse unreachable;
+                    utils.DrawTexture(tex.*, thurst_pos, null, pos.rot);
+                }
             } else if (state.brake) {
                 vel.vel *= m.splat(1 - control.brake_rate * dt);
             }
@@ -236,16 +241,18 @@ pub const Elastic = struct {
     pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @ptrCast(ptr);
         // std.log.debug("Physic System update", .{});
-        // std.log.debug("elastic entities: {}", .{entities.count()});
+        // std.log.debug("elastic entities: {}", .{entities[0].count()});
         var it = entities[0].iterator();
         while (it.next()) |entry| {
             const e = entry.key_ptr.*;
+            //std.log.debug("elastic e: {}", .{e});
             const vel = syss.comp_man.get_comp(comp.Vel, e) orelse unreachable;
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const mass = (syss.comp_man.get_comp(comp.Mass, e) orelse unreachable).mass;
             const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
             // _ = it2.next() orelse continue;
             const e2 = (syss.comp_man.get_comp(comp.Collision, e) orelse unreachable).other;
+            //std.log.debug("elastic e: {}", .{e});
             // std.log.debug("collisio {} {}", .{e, e2});
             const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse continue).mass;
             const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse continue;
@@ -381,10 +388,12 @@ pub const GemDropper = struct {
                 cts[ri] = left / comp.GemDropper.Gem.Worths[ri];
                 left -= cts[ri] * comp.GemDropper.Gem.Worths[ri];
             }
+            var gem_pos = pos.*;
+            gem_pos.roundabout = true;
             for (cts, 0..) |ct, lvl| {
                 for (0..ct) |_| {
                     const g = syss.new_entity();
-                    syss.add_comp(g, pos.*);
+                    syss.add_comp(g, gem_pos);
                     syss.add_comp(g, comp.Vel {
                         .vel = .{ m.randf(-0.2, 0.2), m.randf(-0.2, 0.2) },
                         .rot = m.randf(-0.1, 0.1),
@@ -412,47 +421,73 @@ pub const GemDropper = struct {
 
 
 pub const Weapon = struct {
-    pub const set = .{CompMan.sig_from_types(&.{comp.Weapon, comp.Pos, comp.ShipControl, comp.Team})};
+    pub const set = .{
+        CompMan.sig_from_types(&.{comp.Weapon, comp.Pos, comp.ShipControl, comp.Team}),
+        CompMan.sig_from_types(&.{comp.WeaponHolder, comp.Pos, comp.ShipControl, comp.Team}),
+    };
+    pub fn update_weapon(e: Entity, dt: f32, control: *comp.ShipControl, weapon: *comp.Weapon, team: *comp.Team, ship_pos: *comp.Pos) void {
+        if (weapon.cool_down > 0) {
+            weapon.cool_down -= dt;
+        }
+        if (!control.state.shoot) return;
+       
+        const default_vel = comp.Vel {};
+        const ship_vel = syss.comp_man.get_comp(comp.Vel, e) orelse &default_vel;
+
+        var pos = ship_pos.*;
+        pos.roundabout = false;
+        pos.pos += m.v2rot(m.up, pos.rot + m.randf(-weapon.spread, weapon.spread)) * m.splat(0.1);
+        var vel = comp.Vel {};
+        vel.vel = ship_vel.vel + m.v2rot(m.up, pos.rot) * m.splat(weapon.bullet_spd);
+        vel.vel = m.v2rot(vel.vel, m.randf(-weapon.spread, weapon.spread));
+        const len = weapon.effects.count();
+        while (weapon.cool_down <= 0) {
+            weapon.cool_down += 1 / weapon.fire_rate;
+            if (len == 0) {
+                // std.log.debug("here", .{});
+                weapon.base_effect.shoot_fn(weapon, undefined, vel, pos, team.*, -1);
+            } else {
+                const effect = &weapon.effects.keys()[len - 1];
+                effect.shoot_fn(weapon, effect, vel, pos, team.*, @intCast(len - 1));
+            }
+            if (weapon.sound) |sound|
+                rl.PlaySound(sound.*);
+
+        }
+
+    }
     pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @alignCast(@ptrCast(ptr));
         // std.log.debug("Physic System update", .{});
-        // std.log.debug("elastic entities: {}", .{entities.count()});
+        // std.log.debug("Weapon entities: {}", .{entities[0].count()});
         var it = entities[0].iterator();
         while (it.next()) |entry| {
             const e = entry.key_ptr.*;
             const control = syss.comp_man.get_comp(comp.ShipControl, e) orelse unreachable;
-            if (!control.state.shoot) continue;
-
-            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
             const weapon = syss.comp_man.get_comp(comp.Weapon, e) orelse unreachable;
-            if (weapon.cool_down > 0) {
-                weapon.cool_down -= dt;
-            }
-
+            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
             const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
 
-            const default_vel = comp.Vel {};
-            const ship_vel = syss.comp_man.get_comp(comp.Vel, e) orelse &default_vel;
+            update_weapon(e, dt, control, weapon, team, ship_pos);
 
+        }
+        var it2 = entities[1].iterator();
+        while (it2.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const control = syss.comp_man.get_comp(comp.ShipControl, e) orelse unreachable;
+            const weapon_holder = syss.comp_man.get_comp(comp.WeaponHolder, e) orelse unreachable;
+            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
+            const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+            var size: f32 = 0.1;
+            if (syss.comp_man.get_comp(comp.Size, e)) |comp_size| {
+                size = comp_size.size;
+            }
+            const gap = size / @as(f32, @floatFromInt(weapon_holder.weapons.items.len + 1));
             var pos = ship_pos.*;
-            pos.roundabout = false;
-            pos.pos += m.v2rot(m.up, pos.rot) * m.splat(0.1);
-            var vel = comp.Vel {};
-            vel.vel = ship_vel.vel + m.v2rot(m.up, pos.rot) * m.splat(weapon.bullet_spd);
-            const len = weapon.effects.items.len;
-            while (weapon.cool_down <= 0) {
-                weapon.cool_down += 1 / weapon.fire_rate;
-                if (len == 0) {
-                    // std.log.debug("here", .{});
-                    weapon.base_effect.shoot_fn(weapon, undefined, vel, pos, team.*, -1);
-                } else {
-                    const idx = weapon.effects.items.len - 1;
-                    const effect = &weapon.effects.items[idx];
-                    effect.shoot_fn(weapon, effect, vel, pos, team.*, @intCast(idx));
-                }
-                if (weapon.sound) |sound|
-                    rl.PlaySound(sound.*);
-
+            pos.pos = ship_pos.pos + m.v2rot(.{0, size/2 }, ship_pos.rot + rl.PI / 2);
+            for (weapon_holder.weapons.items) |*weapon| {
+                pos.pos -= m.v2rot(.{0, gap }, ship_pos.rot + rl.PI / 2);
+                update_weapon(e, dt, control, weapon, team, &pos);
             }
         }
         _ = self;
@@ -488,7 +523,8 @@ pub const Bullet = struct {
             syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit});
             if (bullet.sound) |sound|
                 rl.PlaySound(sound.*);
-            syss.free_entity(e);
+            if (bullet.penetrate == 0) syss.add_comp(e, comp.Dead {})
+            else bullet.penetrate -= 1;
         }
         _ = dt;
         _ = self;
@@ -562,7 +598,7 @@ pub const Buff = struct {
         while (it.next()) |entry| {
             const e = entry.*;
             const buffs = syss.comp_man.get_comp(comp.BuffHolder, e) orelse unreachable;
-            
+
             var i: usize = 0;
             while (i < buffs.buffs.items.len) {
                 const buff = &buffs.buffs.items[i];

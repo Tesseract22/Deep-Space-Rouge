@@ -40,11 +40,13 @@ pub const Input = struct {
     shoot: c_int = rl.KEY_SPACE,
 };
 pub const Weapon = struct {
+    pub var id_ct: usize = 0;
     cool_down: f64 = 0,
 
     fire_rate: f32,
     mana_cost: f32 = 0,
     bullet_spd: f32 = 5,
+    spread: f32 = 0.05,
     bullet: Bullet,
     // split: u8 = 1,
     // bullet_count: u8 = 1,
@@ -55,7 +57,7 @@ pub const Weapon = struct {
     pub fn get_effect(weapon: *Weapon, idx: isize) ?*ShootEffect {
         if (idx < -1) return null;
         if (idx == -1) return &weapon.base_effect;
-        return &weapon.effects.items[@intCast(idx)];
+        return &weapon.effects.keys()[@intCast(idx)];
     }
     pub fn basic_base_shoot(
         weapon: *Weapon, effect: *ShootEffect, 
@@ -81,17 +83,27 @@ pub const Weapon = struct {
         pub const ShootFn = fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void;
         shoot_fn: *const fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void,
         data: Data,
-        const Data = union {
-
+        const Data = union(enum) {
+            counter: usize,
         };
     };
-    pub const ShootEffects = std.ArrayList(ShootEffect);
+    pub const ShootEffects = std.AutoArrayHashMap(ShootEffect, void);
+};
+pub const WeaponHolder = struct {
+    weapons: std.ArrayList(Weapon),
+    pub fn init(a: Allocator) WeaponHolder {
+        return .{.weapons = std.ArrayList(Weapon).init(a) };
+    }
+    pub fn deinit(self: *WeaponHolder) void {
+        self.weapons.deinit();
+    }
 };
 pub const Bullet = struct {
     size: f32 = 0.02,
     tex: *rl.Texture,
     dmg: f32 = 10,
     sound: ?*rl.Sound = null,
+    penetrate: u8 = 0,
     pub const OnhitFn = fn (*Weapon, *Bullet, esc.Entity, usize) void;
     pub const Onhits = std.ArrayList(*const OnhitFn);
 
@@ -104,6 +116,8 @@ pub const ShipControl = struct {
     dash_cd: f32 = 5,
 
     state: State = .{},
+
+    thurst_anim: ?assets.AnimationPlayer = null,
     const State = struct {
         forward: bool = false,
         brake: bool = false,
@@ -288,7 +302,7 @@ pub const BuffHolder = struct {
     }
 
 };
-pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Dead, DeadAnimation, Exp, Collision, assets.AnimationPlayer, Weapon, Bullet, 
+pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Dead, DeadAnimation, Exp, Collision, assets.AnimationPlayer, Weapon, WeaponHolder, Bullet, 
     CollisionSet1, CollisionSet2, Team, Ai, GemDropper, Collectible, Collector, BuffHolder};
 pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);

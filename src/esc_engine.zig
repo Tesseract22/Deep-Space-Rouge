@@ -237,18 +237,19 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             self.signatures[e].set(ComponentManager(comp_types).type_to_bit(T));
             self.update_comp(e);
         }
-        pub fn add_comp2(self: *Self, e: Entity, comp: anytype) void {
-            const T = @TypeOf(comp);
-            self.comp_man.add(e, comp);
-            self.signatures[e].set(ComponentManager(comp_types).type_to_bit(T));
-            self.update_comp2(e);
-        }
+        // pub fn add_comp2(self: *Self, e: Entity, comp: anytype) void {
+        //     const T = @TypeOf(comp);
+        //     self.comp_man.add(e, comp);
+        //     self.signatures[e].set(ComponentManager(comp_types).type_to_bit(T));
+        //     self.update_comp2(e);
+        // }
         pub fn del_comp(self: *Self, e: Entity, comptime T: type) void {
             self.comp_man.delete(e, T);
             self.signatures[e].unset(ComponentManager(comp_types).type_to_bit(T));
             self.update_comp(e);
         }
         pub fn clear_events(self: *Self) void {
+            // TODO should also clear the signature of the entity
             const empty = Signature(comp_types).initEmpty();
             inline for (even_types) |t| {
                 self.comp_man.get_arr(t).clear();
@@ -259,8 +260,8 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
                         es.clearRetainingCapacity();
                     }
                 }
-                
             }
+            // for (self.signatures)
         }
         pub fn clear_all(self: *Self) void {
             for (self.systems.items) |*sys| {
@@ -274,6 +275,9 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             }
             inline for (comp_types) |t| {
                 self.comp_man.get_arr(t).clear();
+            }
+            for (&self.signatures) |*sig| {
+                sig.* = Signature(comp_types).initEmpty();
             }
         }
         // iterate through all registered systems, and check if the entity should be in system

@@ -39,3 +39,8 @@ pub fn DrawTextureTint(tex: rl.Texture2D, origin: Vec2, size: ?Vec2, rot: f32, t
 pub inline fn DrawRectCentered(pos: Vec2, size: Vec2, c: rl.Color) void {
     rl.DrawRectangleV(m.coordn2srl(pos - size / m.splat(2.0)), m.sizen2srl(size), c);
 }
+
+pub fn DrawText(v: m.Vec2, text: [:0]const u8, font_size: u8, color: rl.Color) void {
+    const pos = m.coordn2srl(v);
+    rl.DrawText(text, @intFromFloat(pos.x), @intFromFloat(pos.y), font_size, color);
+}

@@ -25,7 +25,8 @@ fn Annouce(s: [:0]const u8, duration: f32) void {
 
 
 
-var a: std.mem.Allocator = undefined;
+pub var a: std.mem.Allocator = undefined;
+pub var arena: std.mem.Allocator = undefined;
 pub var dt: f32 = 0;
 var et: f64 = 0;
 
@@ -41,7 +42,7 @@ fn spawn_player(e: Entity) void {
     syss.add_comp(e, comp.Pos {.roundabout = true});
     syss.add_comp(e, comp.Vel {
         .drag = 2,
-        .rot_drag = 10,
+        .rot_drag = 5,
     });
     syss.add_comp(e, comp.View { 
         .tex = &Assets.Texs.fighter, 
@@ -49,19 +50,41 @@ fn spawn_player(e: Entity) void {
     });
     syss.add_comp(e, comp.ShipControl {
         .thurst = 3.5,
-        .turn_thurst = 0.3,
+        .turn_thurst = 25,
+        .thurst_anim = Assets.AnimationPlayer {.anim = &Assets.Anims.thrust, .loop = true},
     });
     syss.add_comp(e, comp.Input {});
+    syss.add_comp(e, comp.WeaponHolder.init(a));
     syss.add_comp(e, comp.Size {.size = size * 2});
     syss.add_comp(e, comp.Mass {.mass = size * size});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .regen = 1});
     syss.add_comp(e, comp.DeadAnimation {.dead = &Assets.Anims.explode_blue, .dead_size = null});
-    syss.add_comp(e, comp.Weapon {
-        .fire_rate = 5, 
-        .sound = &Assets.Sounds.shoot, 
-        .bullet = .{ .dmg = 30, .sound = &Assets.Sounds.bullet_hit, .tex = &Assets.Texs.bullet, .size = 0.10, },
-        .effects = comp.Weapon.ShootEffects.init(a),
-    });
+    // var weapon_comp = comp.Weapon {
+    //     .fire_rate = 5, 
+    //     .sound = &Assets.Sounds.shoot, 
+    //     .bullet = .{ .dmg = 30, .sound = &Assets.Sounds.bullet_hit, .tex = &Assets.Texs.bullet, .size = 0.10, },
+    //     .effects = comp.Weapon.ShootEffects.init(a),
+    // };
+    // const power_shot = struct {
+    //     pub fn shoot(
+    //         weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
+    //         vel: comp.Vel, pos: comp.Pos, team: comp.Team,
+    //         idx: isize) void 
+    //     {
+    //         effect.data.counter = (effect.data.counter + 1) % 3;
+    //         const prev = weapon.get_effect(idx - 1) orelse return;
+    //         const bullet = weapon.bullet;
+    //         if (effect.data.counter == 0) {
+    //             weapon.bullet.size *= 3;
+    //             weapon.bullet.dmg *= 3;
+    //             weapon.bullet.penetrate = 5;
+    //         }
+    //         prev.shoot_fn(weapon, prev, vel, pos, team, idx - 1);
+    //         weapon.bullet = bullet;
+    //     }
+    // };
+    // weapon_comp.effects.append(comp.Weapon.ShootEffect {.data = .{.counter = 0}, .shoot_fn = power_shot.shoot}) catch unreachable;
+    // syss.add_comp(e, weapon_comp);
     syss.add_comp(e, comp.CollisionSet1{});
     syss.add_comp(e, comp.Team.friendly);
     syss.add_comp(e, comp.Collector {.attract_radius = 0.2, .collect_radius = 0.05});
@@ -74,7 +97,7 @@ fn spawn_hunter() Entity {
     syss.add_comp(e, comp.Pos {.roundabout = false});
     syss.add_comp(e, comp.Vel {
         .drag = 2,
-        .rot_drag = 10,
+        .rot_drag = 8,
     });
     syss.add_comp(e, comp.View { 
         .tex = &Assets.Texs.hunter, 
@@ -82,7 +105,7 @@ fn spawn_hunter() Entity {
     });
     syss.add_comp(e, comp.ShipControl {
         .thurst = 1.5,
-        .turn_thurst = 0.1,
+        .turn_thurst = 12,
     });
     syss.add_comp(e, comp.Size {.size = size * 2});
     syss.add_comp(e, comp.Mass {.mass = size * size});
@@ -115,21 +138,9 @@ fn spawn_hunter() Entity {
             vel2.vel = m.v2rot(vel.vel, -rl.PI / 12);
             pos2.rot = pos.rot  - rl.PI / 12;
             prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
-            // /prev.(w2, dir, spd, pos, idx - 1);
-            // w2.prev_fire = prev_fire;
-
-            // w2.mana_cost_m = 0;
-            // old_shoot(w2, dir + rl.PI / 12, v2rot(spd, rl.PI / 12), pos, idx - 1);
-            // w2.prev_fire = prev_fire;
-
-            // w2.mana_cost_m = mana_cost_m * 2;
-            // old_shoot(w2, dir - rl.PI / 12, v2rot(spd, -rl.PI / 12), pos, idx - 1);
-            // w2.mana_cost_m = mana_cost_m;
-
-            // std.debug.assert(previous != null);
         }
     };
-    weapon_comp.effects.append(comp.Weapon.ShootEffect {.shoot_fn = triple_shot.shoot, .data = undefined}) catch unreachable;
+     weapon_comp.effects.put(comp.Weapon.ShootEffect {.shoot_fn = triple_shot.shoot, .data = undefined}, void{}) catch unreachable;
     syss.add_comp(e, weapon_comp);
     syss.add_comp(e, comp.Ai {.state = .{ .hunter = .{}}});
     syss.add_comp(e, comp.CollisionSet1{});
@@ -143,7 +154,7 @@ fn spawn_crasher() Entity {
     syss.add_comp(e, comp.Pos {.roundabout = false});
     syss.add_comp(e, comp.Vel {
         .drag = 2,
-        .rot_drag = 10,
+        .rot_drag = 5,
     });
     syss.add_comp(e, comp.View { 
         .tex = &Assets.Texs.crasher, 
@@ -151,7 +162,7 @@ fn spawn_crasher() Entity {
     });
     syss.add_comp(e, comp.ShipControl {
         .thurst = 2,
-        .turn_thurst = 0.2,
+        .turn_thurst = 20,
         .state = .{.dash_cd = 5},
     });
     syss.add_comp(e, comp.Size {.size = size * 2});
@@ -195,21 +206,11 @@ pub fn spawn_asteriod() Entity {
     syss.add_comp(e, comp.CollisionSet1{});
     syss.add_comp(e, comp.Team.neutral);
 
-    // a.mover = m;
-    // a.size = splat(m.randf(0.25, 0.5));
-
-
-    // a.valid = true;
-    // a.dead = false;
-
-    // a.hp = a.size[0] * a.size[0] * 200;
-    // a.dead_player = ap;
-
     return e;
 
 }
-var player: Entity = undefined;
-pub fn DrawHUD() void {
+pub var player: Entity = undefined;
+pub fn draw_hud() void {
     // const healthbar_pos = Vec
     const len = 1.5;
     const hei = 0.005;
@@ -256,6 +257,7 @@ pub fn DrawHUD() void {
         rl.DrawText(annoucement, @divFloor(-tw + conf.screenw, 2), 50, 25, rl.LIGHTGRAY);
     }
 }
+var pause = false;
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
@@ -306,7 +308,12 @@ pub fn main() !void {
     spawn_player(player);
 
 
+    var invent = inventory.init(a);
+    defer invent.deinit();
 
+    invent.append_item(inventory.Item.basic_gun());
+    invent.append_item(inventory.Item.basic_gun());
+    invent.append_item(inventory.Item.triple_shot());
 
     m.randGen = std.Random.DefaultPrng.init(@intCast(std.time.microTimestamp()));
     rl.InitWindow(conf.screenw, conf.screenh, "Deep Space Rouge");
@@ -321,6 +328,8 @@ pub fn main() !void {
     while (!rl.WindowShouldClose()) {
         var aa = std.heap.ArenaAllocator.init(a);
         defer aa.deinit();
+        defer syss.clear_events();
+        arena = aa.allocator();
         dt = rl.GetFrameTime();
         et = rl.GetTime();
 
@@ -328,6 +337,14 @@ pub fn main() !void {
         rl.BeginDrawing();
         {
             // rl.ClearBackground(rl.RED);
+            //
+            if (rl.IsKeyPressed(rl.KEY_I)) {
+                pause = !pause;
+
+            }
+            if (pause) {
+                dt = 0;
+            }
             const space_tex = &Assets.Texs.space;
             rl.DrawTexturePro(space_tex.*, .{ .x = 0, .y = 0, .width = @floatFromInt(space_tex.width), .height = @floatFromInt(space_tex.height) }, .{ .x = 0, .y = 0, .width = conf.screenw, .height = conf.screenh }, .{ .x = 0, .y = 0 }, 0, .{ .r = 0x9f, .g = 0x9f, .b = 0x9f, .a = 0xff });
             if (rl.IsKeyPressed(rl.KEY_J)) {
@@ -341,9 +358,10 @@ pub fn main() !void {
             }
 
             syss.update(dt);
-            syss.clear_events();
-            DrawHUD();
-            inventory.DrawItemMenu();
+            draw_hud();
+            if (pause) {
+                invent.draw();
+            }
             // check for level up
             if (syss.comp_man.get_comp(comp.Exp, player)) |exp| {
                 while (exp.curr_exp >= exp.next_lvl) {
@@ -366,6 +384,7 @@ pub fn main() !void {
                     Annouce("GAME START!", 5);
                     dead.player_dead = false;
                     spawn_player(player);
+                    invent.cal_item();
                 }
             }
             if (rl.IsKeyPressed(rl.KEY_M)) {
