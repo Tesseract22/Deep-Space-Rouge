@@ -19,6 +19,7 @@ const Vec2 = m.Vec2;
 const conf = @import("config.zig");
 const utils = @import("utils.zig");
 const assets = @import("assets.zig");
+const main = @import("main.zig");
 
 pub const Manager = esc.SystemManager(&comp.comp_types, &comp.event_types);
 pub var syss: Manager = undefined;
@@ -305,15 +306,6 @@ pub const Health = struct {
             const e = entry.key_ptr.*;
             const health = syss.comp_man.get_comp(comp.Health, e) orelse unreachable;
             if (health.hp <= 0) {
-                // const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
-                // if (health.dead) |dead_anim| {
-                //     const anim_e = syss.new_entity();
-                //     syss.add_comp(anim_e, pos.*);
-                //     syss.add_comp(anim_e, assets.AnimationPlayer {.anim = dead_anim, .size = health.dead_size});
-                //     if (syss.comp_man.get_comp(comp.Vel, e)) |vel| {
-                //         syss.add_comp(anim_e, vel.*);
-                //     }
-                // }
                 syss.add_comp(e, comp.Dead {});
             } else if (health.hp < health.max) {
                 health.hp += health.regen * dt;
@@ -623,3 +615,58 @@ pub const Buff = struct {
         holder.buffs.append(new_buff.*) catch unreachable;
     }
 };
+
+pub const EnemeySpawner = struct {
+    pub const set = .{CompMan.sig_from_types(&.{comp.Dead})};
+    const SpawnFn = fn () esc.Entity;
+    const enemy_weights = [_]std.meta.Tuple(&[_]type{ *const SpawnFn, usize }){ 
+        .{ main.spawn_crasher, 15 }, 
+        .{ main.spawn_hunter, 30 } 
+    };
+    const wave_cd = 2.0;
+    wave: std.AutoHashMap(esc.Entity, void),
+    wave_worth: usize = 100,
+    wave_ct: usize = 0,
+    t: f32 = wave_cd,
+    pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @alignCast(@ptrCast(ptr));
+        var it = entities[0].keyIterator();
+        while (it.next()) |entry| {
+            const e = entry.*;
+            _ = self.wave.remove(e);
+        }
+        if (self.wave.count() == 0) {
+            if (self.t <= 0) {
+                self.spawn_wave();
+                self.t = wave_cd; 
+            } else {
+                self.t -= dt;
+            }
+        }
+    }
+    fn spawn_wave(self: *EnemeySpawner) void {
+        main.Annouce("New Wave!", 2);
+
+        var total: usize = 0;
+        while (total < self.wave_worth) {
+            const t = enemy_weights[m.randGen.next() % enemy_weights.len];
+            const max_t: usize = @max((self.wave_worth - total) / t[1], 1);
+            const n: usize = m.randu(1, max_t);
+            for (0..n) |_| {
+                self.wave.put(t[0](), void{}) catch unreachable;
+            }
+            total += n * t[1];
+        }
+        self.wave_worth += 30;
+        self.wave_ct += 1;
+    }
+    pub fn init(a: Allocator) EnemeySpawner {
+        return .{.wave = std.AutoHashMap(esc.Entity, void).init(a)};
+    }
+    pub fn deinit(self: *EnemeySpawner) void {
+        self.wave.deinit();
+    }
+
+};
+
+

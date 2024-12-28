@@ -98,7 +98,19 @@ pub fn randf(min: f32, max: f32) f32 {
     const range = max - min;
     return randGen.random().float(f32) * range + min;
 }
+pub fn randu(min: usize, max: usize) usize {
+    const range = max - min;
+    if (range == 0) return max;
+    return randGen.random().int(usize) % range + min;
+}
 
 pub fn randSign() f32 {
     return if (randGen.random().float(f32) > 0.5) 1 else -1;
+}
+pub fn rand_pos() Vec2 {
+    return .{ randf(-0.8, 0.8), randf(-0.8, 0.8) };
+}
+
+pub fn rand_rot() f32 {
+    return randf(0, 2*std.math.pi);
 }

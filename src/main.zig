@@ -17,7 +17,7 @@ const Buff = comp.BuffHolder.Buff;
 
 var annoucement: [:0]const u8 = "";
 var annouce_t: f32 = 0;
-fn Annouce(s: [:0]const u8, duration: f32) void {
+pub fn Annouce(s: [:0]const u8, duration: f32) void {
     annoucement = s;
     annouce_t = duration;
 }
@@ -91,10 +91,10 @@ fn spawn_player(e: Entity) void {
     syss.add_comp(e, comp.Exp {.next_lvl = 50});
     syss.add_comp(e, comp.BuffHolder.init(a));
 }
-fn spawn_hunter() Entity {
+pub fn spawn_hunter() Entity {
     const e: Entity = syss.new_entity();
     const size = 0.08;
-    syss.add_comp(e, comp.Pos {.roundabout = false});
+    syss.add_comp(e, comp.Pos {.roundabout = false, .pos = m.rand_pos(), .rot = m.rand_rot()});
     syss.add_comp(e, comp.Vel {
         .drag = 2,
         .rot_drag = 8,
@@ -148,10 +148,10 @@ fn spawn_hunter() Entity {
     syss.add_comp(e, comp.GemDropper {.value = 50});
     return e;
 }
-fn spawn_crasher() Entity {
+pub fn spawn_crasher() Entity {
     const e: Entity = syss.new_entity();
     const size = 0.08;
-    syss.add_comp(e, comp.Pos {.roundabout = false});
+    syss.add_comp(e, comp.Pos {.roundabout = false, .pos = m.rand_pos(), .rot = m.rand_rot()});
     syss.add_comp(e, comp.Vel {
         .drag = 2,
         .rot_drag = 5,
@@ -280,6 +280,8 @@ pub fn main() !void {
     var weapon = system.Weapon {};
     var bullet = system.Bullet {};
     var dead = system.Dead {.player_e = &player};
+    var enemy_spawn = system.EnemeySpawner.init(a);
+    defer enemy_spawn.deinit();
     var dead_anim = system.DeadAnimation {};
     var gem_dropper = system.GemDropper {};
     var collect = system.Collector {};
@@ -304,6 +306,7 @@ pub fn main() !void {
     syss.register(system.get(&bullet, a));
     syss.register(system.get(&dead_anim, a));
     syss.register(system.get(&gem_dropper, a));
+    syss.register(system.get(&enemy_spawn, a));
     syss.register(system.get(&dead, a));
     spawn_player(player);
 
@@ -385,6 +388,7 @@ pub fn main() !void {
                     dead.player_dead = false;
                     spawn_player(player);
                     invent.cal_item();
+                    enemy_spawn.wave.clearRetainingCapacity();
                 }
             }
             if (rl.IsKeyPressed(rl.KEY_M)) {
