@@ -186,10 +186,11 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             }
             break :blk sig;
         };
+        pub const CompMan = ComponentManager(comp_types);
         systems: std.ArrayList(System(comp_types)),
         fresh_entities: std.BoundedArray(Entity, MAX_ENTITIES),
         signatures: [MAX_ENTITIES]Signature(comp_types),
-        comp_man: ComponentManager(comp_types),
+        comp_man: CompMan,
         pub fn init(a: Allocator) Self {
             var res = Self {
                 .systems = std.ArrayList(System(comp_types)).init(a), 
@@ -247,6 +248,10 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
             self.comp_man.delete(e, T);
             self.signatures[e].unset(ComponentManager(comp_types).type_to_bit(T));
             self.update_comp(e);
+        }
+        pub fn get_comp(self: *Self, e: Entity, comptime T: type) ?*T {
+            if (!self.signatures[e].isSet(CompMan.get_idx(T))) return null;
+            return self.comp_man.get_comp(T, e);
         }
         pub fn clear_events(self: *Self) void {
             // TODO should also clear the signature of the entity

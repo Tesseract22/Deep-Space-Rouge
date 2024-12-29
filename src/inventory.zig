@@ -11,9 +11,19 @@ const utils = @import("utils.zig");
 const comp = @import("componet.zig");
 const main = @import("main.zig");
 
+const Weapon = comp.Weapon;
+const ShootEffect = Weapon.ShootEffect;
+
 const Self = @This();
 
+pub fn spawn_item(self: *Self) void {
 
+    const i = Item.item_weight[m.randGen.next() % Item.item_weight.len];
+    const item = i[0]();
+    // std.log.debug("spawned: {s}", .{item.name});
+    _ = self.append_item(item);
+    self.selected_item = item.id;
+}
 
 pub const Item = struct {
     pub var item_id: usize = 0;
@@ -23,6 +33,15 @@ pub const Item = struct {
     tex: *rl.Texture2D,
     name: [:0]const u8,
     type: ItemType,
+
+    const item_weight = [_]std.meta.Tuple(&[_]type{ (*const fn () Item), f32 }){
+        // .{ Item.water, 1 },
+        // .{ Item.weight, 1 },
+        // .{ Item.energy_bullet, 1 },
+        .{ Item.triple_shots, 1 },
+        .{ Item.basic_gun, 1 },
+        // .{ Item.machine_gun, 1 },
+    };
 
     const ItemType = union(enum) {
         weapon: comp.Weapon,
@@ -47,7 +66,7 @@ pub const Item = struct {
             .shape = .{ .{ 0, 0 }, .{ 0, 1 }, null, null, null },
             .type = .{.weapon = weapon_comp}};
     }
-    pub fn triple_shot() Item {
+    pub fn triple_shots() Item {
         const triple_shot_impl = struct {
             pub fn shoot(
                 weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
@@ -68,10 +87,20 @@ pub const Item = struct {
                 pos2.rot = pos.rot  - rl.PI / 12;
                 prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
             }
+            pub fn load(w: *Weapon, effect: *ShootEffect) void {
+                _ = effect;
+                w.fire_rate /= 2;
+            }
+            pub fn un_load(w: *Weapon, effect: *ShootEffect) void {
+                _ = effect;
+                w.fire_rate *= 2;
+            }
         };
-        const effect = comp.Weapon.ShootEffect {
+        const effect = ShootEffect {
             .data = undefined,
             .shoot_fn = triple_shot_impl.shoot,
+            .on_load = triple_shot_impl.load,
+            .on_unload = triple_shot_impl.un_load,
         };
 
         return .{
@@ -106,8 +135,9 @@ pub fn deinit(self: *Self) void {
     }
     self.items.deinit();
 }
-pub fn append_item(self: *Self, item: Item) void {
+pub fn append_item(self: *Self, item: Item) usize {
     self.items.put(item.id, item) catch unreachable;
+    return item.id;
 } 
 
 fn DrawItem(item: Item, pos: m.Vec2) void {
@@ -120,6 +150,10 @@ fn checkItemBound(bc: @Vector(2, i32)) bool {
 }
 fn checkItemOccupied(self: Self, bc: @Vector(2, u8)) bool {
     return self.inventory[bc[0]][bc[1]] == null;
+}
+pub fn try_place_item(self: *Self, bc: @Vector(2, i32), id: usize) bool {
+    const item = self.items.getPtr(id) orelse return false;
+    return self.tryPlaceItem(bc, item);
 }
 fn tryPlaceItem(self: *Self, bc: @Vector(2, i32), si: *Item) bool {
     for (si.shape) |shape_coord| {
@@ -223,7 +257,10 @@ pub fn draw(self: *Self) void {
             it = self.items.iterator();
             list_ct = 0;
             self.selected_item = while (it.next()) |entry| : (list_ct += 1) {
-                if (list_ct == mouse_list_i) break entry.value_ptr.id;
+                if (list_ct == mouse_list_i) {
+                    rl.PlaySound(assets.Sounds.select);
+                    break entry.value_ptr.id;
+                }
             } else unreachable;
         }
     }
@@ -264,15 +301,16 @@ pub fn cal_item(self: Self) void {
         _ = item.pos orelse continue;
         switch (item.type) {
             .weapon => |*w| {
-                w.effects.clearRetainingCapacity();
+                w.clear_all_effects();
                 var ns = self.neighbor(item);
                 defer ns.deinit();
+                // std.log.debug("neighbor {}", .{ns.count()});
                 var it2 = ns.iterator();
                 while (it2.next()) |entry2| {
                     const n = entry2.value_ptr;
                     switch (n.type) {
-                        .effect => |buff| {
-                            w.effects.put(buff, void{}) catch unreachable;
+                        .effect => |*effect| {
+                            w.append_effect(n.id, effect);
                         },
                         else => {},
                     }

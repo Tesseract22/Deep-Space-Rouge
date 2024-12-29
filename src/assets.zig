@@ -98,6 +98,8 @@ pub const Sounds = struct {
     pub var level_up:       rl.Sound = undefined;
     pub var collide:        rl.Sound = undefined;
     pub var explode_1:      rl.Sound = undefined;
+    pub var hurt:           rl.Sound = undefined;
+    pub var select:         rl.Sound = undefined;
     pub fn load() void {
         const info = @typeInfo(Sounds).@"struct";
         rl.InitAudioDevice();
@@ -170,6 +172,7 @@ pub const AnimationPlayer = struct {
 	et: f32 = 0,
 	size: ?m.Vec2 = null,
 	loop: bool = false,
+        should_kill: bool = true,
 
 	anim: *Animation,
 	pub fn play(self: *AnimationPlayer, t: f32) ?*rl.Texture2D {

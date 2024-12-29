@@ -91,10 +91,10 @@ fn spawn_player(e: Entity) void {
     syss.add_comp(e, comp.Exp {.next_lvl = 50});
     syss.add_comp(e, comp.BuffHolder.init(a));
 }
-pub fn spawn_hunter() Entity {
+pub fn spawn_hunter(pos: comp.Pos) Entity {
     const e: Entity = syss.new_entity();
     const size = 0.08;
-    syss.add_comp(e, comp.Pos {.roundabout = false, .pos = m.rand_pos(), .rot = m.rand_rot()});
+    syss.add_comp(e, pos);
     syss.add_comp(e, comp.Vel {
         .drag = 2,
         .rot_drag = 8,
@@ -111,7 +111,7 @@ pub fn spawn_hunter() Entity {
     syss.add_comp(e, comp.Mass {.mass = size * size});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, });
     syss.add_comp(e, comp.DeadAnimation { .dead = &Assets.Anims.explode_blue});
-    var weapon_comp = comp.Weapon {
+    const weapon_comp = comp.Weapon {
         .cool_down = 2,
         .fire_rate = 0.5, 
         .bullet_spd = 1,
@@ -119,28 +119,7 @@ pub fn spawn_hunter() Entity {
         .bullet = .{.dmg = 35, .sound = &Assets.Sounds.bullet_hit, .size = 0.1, .tex = &Assets.Texs.bullet_fire},
         .effects = comp.Weapon.ShootEffects.init(a),
     };
-    const triple_shot = struct {
-        pub fn shoot(
-            weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
-            vel: comp.Vel, pos: comp.Pos, team: comp.Team,
-            idx: isize) void 
-        {
-            _ = effect;
-            const prev = weapon.get_effect(idx - 1) orelse return;
-            var pos2 = pos;
-            var vel2 = vel;
-            prev.shoot_fn(weapon, prev, vel, pos, team, idx - 1);
-
-            vel2.vel = m.v2rot(vel.vel, rl.PI / 12);
-            pos2.rot = pos.rot + rl.PI / 12;
-            prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
-
-            vel2.vel = m.v2rot(vel.vel, -rl.PI / 12);
-            pos2.rot = pos.rot  - rl.PI / 12;
-            prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
-        }
-    };
-     weapon_comp.effects.put(comp.Weapon.ShootEffect {.shoot_fn = triple_shot.shoot, .data = undefined}, void{}) catch unreachable;
+    // weapon_comp.effects.put(comp.Weapon.ShootEffect {.shoot_fn = triple_shot.shoot, .data = undefined}, void{}) catch unreachable;
     syss.add_comp(e, weapon_comp);
     syss.add_comp(e, comp.Ai {.state = .{ .hunter = .{}}});
     syss.add_comp(e, comp.CollisionSet1{});
@@ -148,10 +127,10 @@ pub fn spawn_hunter() Entity {
     syss.add_comp(e, comp.GemDropper {.value = 50});
     return e;
 }
-pub fn spawn_crasher() Entity {
+pub fn spawn_crasher(pos: comp.Pos) Entity {
     const e: Entity = syss.new_entity();
     const size = 0.08;
-    syss.add_comp(e, comp.Pos {.roundabout = false, .pos = m.rand_pos(), .rot = m.rand_rot()});
+    syss.add_comp(e, pos);
     syss.add_comp(e, comp.Vel {
         .drag = 2,
         .rot_drag = 5,
@@ -188,11 +167,11 @@ pub fn spawn_asteriod() Entity {
     const size = m.randf(0.02, 0.15);
     syss.add_comp(e, comp.Pos {
         .pos = pos,
-        .rot = 0,
+        .rot = m.rand_rot(),
     });
     syss.add_comp(e, comp.Vel {
         .vel = m.v2n(target - pos) * m.splat(m.randf(0.05, 0.3)),
-        .rot = m.randf(-0.005, 0.005),
+        .rot = m.randf(-5, 5),
         .drag = 0.01,
         .rot_drag = 1,
     });
@@ -221,7 +200,7 @@ pub fn draw_hud() void {
     {
 
         const default = comp.Health {.hp = 0, .max = 100};
-        const hp_comp = syss.comp_man.get_comp(comp.Health, player) orelse &default;
+        const hp_comp = syss.get_comp(player, comp.Health) orelse &default;
         const perc = (hp_comp.hp / hp_comp.max);
 
         // rl.DrawRectangleV(m.coordn2srl(hp_pos), m.sizen2srl(.{0.2, 0.2}), rl.RED);
@@ -234,7 +213,7 @@ pub fn draw_hud() void {
     const gem_pos = Vec2{ 0, 0.85 };
     {
         const default = comp.Exp {.curr_exp = 0, .next_lvl = 100};
-        const gem_comp = syss.comp_man.get_comp(comp.Exp, player) orelse &default;
+        const gem_comp = syss.get_comp(player, comp.Exp) orelse &default;
 
         const perc = (@as(f32, @floatFromInt(gem_comp.curr_exp)) / @as(f32, @floatFromInt(gem_comp.next_lvl)));
         utils.DrawRectCentered(gem_pos, .{ len, hei }, gem_bg_color);
@@ -314,9 +293,16 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    invent.append_item(inventory.Item.basic_gun());
-    invent.append_item(inventory.Item.basic_gun());
-    invent.append_item(inventory.Item.triple_shot());
+    const first_item_id = invent.append_item(inventory.Item.basic_gun());
+    // invent.append_item(inventory.Item.basic_gun());
+    // invent.append_item(inventory.Item.triple_shot());
+    std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
+
+
+    _ = invent.append_item(inventory.Item.triple_shots());
+    _ = invent.append_item(inventory.Item.triple_shots());
+
+    invent.cal_item();
 
     m.randGen = std.Random.DefaultPrng.init(@intCast(std.time.microTimestamp()));
     rl.InitWindow(conf.screenw, conf.screenh, "Deep Space Rouge");
@@ -350,15 +336,15 @@ pub fn main() !void {
             }
             const space_tex = &Assets.Texs.space;
             rl.DrawTexturePro(space_tex.*, .{ .x = 0, .y = 0, .width = @floatFromInt(space_tex.width), .height = @floatFromInt(space_tex.height) }, .{ .x = 0, .y = 0, .width = conf.screenw, .height = conf.screenh }, .{ .x = 0, .y = 0 }, 0, .{ .r = 0x9f, .g = 0x9f, .b = 0x9f, .a = 0xff });
-            if (rl.IsKeyPressed(rl.KEY_J)) {
-                _ = spawn_asteriod();
-            }
-            if (rl.IsKeyPressed(rl.KEY_K)) {
-                if (m.randGen.next() % 2 == 0)
-                    _ = spawn_crasher()
-                else
-                    _ = spawn_hunter();
-            }
+            // if (rl.IsKeyPressed(rl.KEY_J)) {
+            //     _ = spawn_asteriod();
+            // }
+            // if (rl.IsKeyPressed(rl.KEY_K)) {
+            //     if (m.randGen.next() % 2 == 0)
+            //         _ = spawn_crasher()
+            //     else
+            //         _ = spawn_hunter();
+            // }
 
             syss.update(dt);
             draw_hud();
@@ -366,15 +352,15 @@ pub fn main() !void {
                 invent.draw();
             }
             // check for level up
-            if (syss.comp_man.get_comp(comp.Exp, player)) |exp| {
+            if (syss.get_comp(player, comp.Exp)) |exp| {
                 while (exp.curr_exp >= exp.next_lvl) {
                     exp.curr_exp -= exp.next_lvl;
                     exp.next_lvl += 50;
                     rl.PlaySound(Assets.Sounds.level_up);
                     Annouce("Level Up! (Open Inventory With [I])", 2);
-
+                    invent.spawn_item();
                     var spd_buff = Buff.init_simple(comp.ShipControl, "thurst", 2.5, 5);
-                    var fire_rate_buff = Buff.init_simple(comp.Weapon, "fire_rate", 1, 5);
+                    var fire_rate_buff = Buff.init_simple(comp.WeaponHolder, "fire_rate", 1, 5);
                     system.Buff.try_apply(player, &spd_buff);
                     system.Buff.try_apply(player, &fire_rate_buff);
                 }
@@ -392,7 +378,7 @@ pub fn main() !void {
                 }
             }
             if (rl.IsKeyPressed(rl.KEY_M)) {
-                const player_input = syss.comp_man.get_comp(comp.Input, player) orelse unreachable;
+                const player_input = syss.get_comp(player, comp.Input) orelse unreachable;
                 player_input.mouse = !player_input.mouse;
             }
         }

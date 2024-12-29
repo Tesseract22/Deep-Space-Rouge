@@ -76,7 +76,7 @@ pub const View = struct {
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const view = syss.comp_man.get_comp(comp.View, e) orelse unreachable;
 
-            utils.DrawTexture(view.tex.*, pos.pos, view.size, pos.rot);
+            utils.DrawTextureTint(view.tex.*, pos.pos, view.size, pos.rot, view.tint);
             // if (syss.comp_man.get_comp(comp.Size, e)) |size| {
             //     rl.DrawCircleLinesV(m.coordn2srl(pos.pos), m.size2s(size.size/2), rl.WHITE);
             // }
@@ -106,8 +106,8 @@ pub const Animation = struct {
 
             if (player.play(dt)) |tex| {
                 utils.DrawTexture(tex.*, pos.pos, player.size, pos.rot);
-            } else {
-                syss.del_comp(e, assets.AnimationPlayer);
+            } else if (player.should_kill) {
+                syss.add_comp(e, comp.Dead{});
             }
         }
         _ = self;
@@ -219,8 +219,8 @@ pub fn Collision(comptime Set: type) type {
 
                     const dist = m.v2dist(pos.pos, pos2.pos);
                     if (dist < (size + size2) / 2) {
-                        syss.add_comp(e, comp.Collision {.other = e2});
-                        syss.add_comp(e2, comp.Collision {.other = e});
+                        generate_collision_event(e, e2);
+                        generate_collision_event(e2, e);
                     }
                 }
 
@@ -230,8 +230,19 @@ pub fn Collision(comptime Set: type) type {
             _ = dt;
             _ = self;
         }
+        pub fn generate_collision_event(e1: Entity, e2: Entity) void {
+            if (syss.get_comp(e1, comp.Collision)) |coll| {
+                coll.others.append(e2) catch {}; // more collisions are simply ignored, for now
+            } else {
+                var coll = comp.Collision {};
+                coll.others.append(e2) catch unreachable;
+                syss.add_comp(e1, coll);
+            }
+
+        }
 
     };
+
 }
 
 
@@ -252,42 +263,45 @@ pub const Elastic = struct {
             const mass = (syss.comp_man.get_comp(comp.Mass, e) orelse unreachable).mass;
             const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
             // _ = it2.next() orelse continue;
-            const e2 = (syss.comp_man.get_comp(comp.Collision, e) orelse unreachable).other;
-            //std.log.debug("elastic e: {}", .{e});
-            // std.log.debug("collisio {} {}", .{e, e2});
-            const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse continue).mass;
-            const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse continue;
-            const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse continue;
-            const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse continue).size;
+        
+            const collision = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
+            for (collision.others.constSlice()) |e2| {
+
+                //std.log.debug("elastic e: {}", .{e});
+                // std.log.debug("collisio {} {}", .{e, e2});
+                const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse continue).mass;
+                const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse continue;
+                const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse continue;
+                const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse continue).size;
 
 
-            const dist = m.v2dist(pos.pos, pos2.pos);
-            const total_m = mass + mass2;
-            const wx = mass2 / total_m;
-            // const wy = mass / total_m;
-            const d = m.v2n(pos.pos - pos2.pos);
-            const xs = m.v2dot(vel.vel, d);
-            const ys = m.v2dot(vel2.vel, d);
-            const s = xs - ys;
-            // rl.PlaySound(Assets.Sounds.collide);
-            // if (dmg) {
-            //     y.hp -= wy * (-s) * 10;
-            //     x.hp -= wx * (-s) * 10;
-            // }
-            // std.log.debug("elastic e: {}", .{e});
-            // vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
-            const diff = (size + size2) / 2 - dist;
-            pos.pos += m.splat(0.5 * diff) * d;
+                const dist = m.v2dist(pos.pos, pos2.pos);
+                const total_m = mass + mass2;
+                const wx = mass2 / total_m;
+                // const wy = mass / total_m;
+                const d = m.v2n(pos.pos - pos2.pos);
+                const xs = m.v2dot(vel.vel, d);
+                const ys = m.v2dot(vel2.vel, d);
+                const s = xs - ys;
+                // rl.PlaySound(Assets.Sounds.collide);
+                // if (dmg) {
+                //     y.hp -= wy * (-s) * 10;
+                //     x.hp -= wx * (-s) * 10;
+                // }
+                // std.log.debug("elastic e: {}", .{e});
+                // vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
+                const diff = (size + size2) / 2 - dist;
+                pos.pos += m.splat(0.5 * diff) * d;
 
-            if (s >= 0) continue;
-            vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
+                if (s >= 0) continue;
+                vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
 
 
-            if (syss.comp_man.get_comp(comp.Health, e)) |health| {
-                health.hp -= -s * wx * collision_dmg_mul;
+                if (syss.comp_man.get_comp(comp.Health, e)) |health| {
+                    health.hp -= -s * wx * collision_dmg_mul;
+                }
+                // pos2.pos -= m.splat(0.5 * diff) * d;
             }
-            // pos2.pos -= m.splat(0.5 * diff) * d;
-
         }
         _ = dt;
         _ = self;
@@ -306,6 +320,7 @@ pub const Health = struct {
             const e = entry.key_ptr.*;
             const health = syss.comp_man.get_comp(comp.Health, e) orelse unreachable;
             if (health.hp <= 0) {
+                rl.PlaySound(assets.Sounds.hurt);
                 syss.add_comp(e, comp.Dead {});
             } else if (health.hp < health.max) {
                 health.hp += health.regen * dt;
@@ -418,7 +433,9 @@ pub const Weapon = struct {
         CompMan.sig_from_types(&.{comp.Weapon, comp.Pos, comp.ShipControl, comp.Team}),
         CompMan.sig_from_types(&.{comp.WeaponHolder, comp.Pos, comp.ShipControl, comp.Team}),
     };
-    pub fn update_weapon(e: Entity, dt: f32, control: *comp.ShipControl, weapon: *comp.Weapon, team: *comp.Team, ship_pos: *comp.Pos) void {
+    pub fn update_weapon(holder: ?*comp.WeaponHolder, e: Entity, dt: f32, control: *comp.ShipControl, weapon: *comp.Weapon, team: *comp.Team, ship_pos: *comp.Pos) void {
+        const holder_default = comp.WeaponHolder {.weapons = undefined};
+        const holder_actual = holder orelse &holder_default;
         if (weapon.cool_down > 0) {
             weapon.cool_down -= dt;
         }
@@ -435,12 +452,12 @@ pub const Weapon = struct {
         vel.vel = m.v2rot(vel.vel, m.randf(-weapon.spread, weapon.spread));
         const len = weapon.effects.count();
         while (weapon.cool_down <= 0) {
-            weapon.cool_down += 1 / weapon.fire_rate;
+            weapon.cool_down += 1 / (weapon.fire_rate * holder_actual.fire_rate) ;
             if (len == 0) {
                 // std.log.debug("here", .{});
                 weapon.base_effect.shoot_fn(weapon, undefined, vel, pos, team.*, -1);
             } else {
-                const effect = &weapon.effects.keys()[len - 1];
+                const effect = &weapon.effects.values()[len - 1];
                 effect.shoot_fn(weapon, effect, vel, pos, team.*, @intCast(len - 1));
             }
             if (weapon.sound) |sound|
@@ -461,7 +478,7 @@ pub const Weapon = struct {
             const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
             const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
 
-            update_weapon(e, dt, control, weapon, team, ship_pos);
+            update_weapon(null, e, dt, control, weapon, team, ship_pos);
 
         }
         var it2 = entities[1].iterator();
@@ -480,7 +497,7 @@ pub const Weapon = struct {
             pos.pos = ship_pos.pos + m.v2rot(.{0, size/2 }, ship_pos.rot + rl.PI / 2);
             for (weapon_holder.weapons.items) |*weapon| {
                 pos.pos -= m.v2rot(.{0, gap }, ship_pos.rot + rl.PI / 2);
-                update_weapon(e, dt, control, weapon, team, &pos);
+                update_weapon(weapon_holder, e, dt, control, weapon, team, &pos);
             }
         }
         _ = self;
@@ -503,21 +520,24 @@ pub const Bullet = struct {
             const collision = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
             const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
 
-            const health = syss.comp_man.get_comp(comp.Health, collision.other) orelse continue;
-            const other_team = syss.comp_man.get_comp(comp.Team, collision.other) orelse continue;
+            for (collision.others.constSlice()) |other| {
 
-            if (team.* == other_team.*) continue;
-            health.hp -= bullet.dmg;
+                const health = syss.comp_man.get_comp(comp.Health, other) orelse continue;
+                const other_team = syss.comp_man.get_comp(comp.Team, other) orelse continue;
 
-            const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
-            const anim_e = syss.new_entity();
+                if (team.* == other_team.*) continue;
+                health.hp -= bullet.dmg;
 
-            syss.add_comp(anim_e, pos.*);
-            syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit});
-            if (bullet.sound) |sound|
-                rl.PlaySound(sound.*);
-            if (bullet.penetrate == 0) syss.add_comp(e, comp.Dead {})
-            else bullet.penetrate -= 1;
+                const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+                const anim_e = syss.new_entity();
+
+                syss.add_comp(anim_e, pos.*);
+                syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit});
+                if (bullet.sound) |sound|
+                    rl.PlaySound(sound.*);
+                if (bullet.penetrate == 0) syss.add_comp(e, comp.Dead {})
+                else bullet.penetrate -= 1;
+            }
         }
         _ = dt;
         _ = self;
@@ -618,13 +638,21 @@ pub const Buff = struct {
 
 pub const EnemeySpawner = struct {
     pub const set = .{CompMan.sig_from_types(&.{comp.Dead})};
-    const SpawnFn = fn () esc.Entity;
+    const SpawnFn = fn (pos: comp.Pos) esc.Entity;
     const enemy_weights = [_]std.meta.Tuple(&[_]type{ *const SpawnFn, usize }){ 
         .{ main.spawn_crasher, 15 }, 
         .{ main.spawn_hunter, 30 } 
     };
     const wave_cd = 2.0;
-    wave: std.AutoHashMap(esc.Entity, void),
+    const wormhole_teleport_t = 3;
+    const WormHoleTimer = struct {
+        control: comp.ShipControl,
+        mass: comp.Mass,
+        mature: bool = false,
+    };
+
+    wave: std.AutoHashMap(esc.Entity, WormHoleTimer),
+    mature_ct: usize = 0,
     wave_worth: usize = 100,
     wave_ct: usize = 0,
     t: f32 = wave_cd,
@@ -635,10 +663,30 @@ pub const EnemeySpawner = struct {
             const e = entry.*;
             _ = self.wave.remove(e);
         }
+        var it2 = self.wave.iterator();
+        if (self.mature_ct < self.wave.count()) {
+            while (it2.next()) |entry| {
+                const e = entry.key_ptr.*;
+                const timer = entry.value_ptr;
+                if (timer.mature) continue;
+                const anim_player = syss.comp_man.get_comp(assets.AnimationPlayer, e) orelse unreachable;
+                const view = syss.comp_man.get_comp(comp.View, e) orelse unreachable;
+                const ratio = @as(f32, @floatFromInt(anim_player.curr_frame)) / @as(f32, @floatFromInt(anim_player.anim.frames.items.len));
+                view.tint.a = @intFromFloat(ratio * ratio * 255);
+                if (anim_player.isLast()) {
+                    syss.add_comp(e, timer.control);
+                    syss.add_comp(e, timer.mass);
+                    timer.mature = true;
+                    self.mature_ct += 1;
+                    view.tint.a = 255;
+                }
+            }
+        }
         if (self.wave.count() == 0) {
             if (self.t <= 0) {
                 self.spawn_wave();
                 self.t = wave_cd; 
+                self.mature_ct = 0;
             } else {
                 self.t -= dt;
             }
@@ -653,15 +701,28 @@ pub const EnemeySpawner = struct {
             const max_t: usize = @max((self.wave_worth - total) / t[1], 1);
             const n: usize = m.randu(1, max_t);
             for (0..n) |_| {
-                self.wave.put(t[0](), void{}) catch unreachable;
+                const pos = comp.Pos {.pos = m.rand_pos(), .rot = m.rand_rot(), .roundabout = false};
+                const e = t[0](pos);
+                syss.add_comp(e, assets.AnimationPlayer {.anim = &assets.Anims.wormhole, .should_kill = false});
+                // temporarily remove some component while the wormhole is warping
+                const control = syss.comp_man.get_comp(comp.ShipControl, e) orelse unreachable;
+                const mass = syss.comp_man.get_comp(comp.Mass, e) orelse unreachable;
+                syss.del_comp(e, comp.ShipControl);
+                syss.del_comp(e, comp.Mass);
+                self.wave.put(e, .{.control = control.*, .mass = mass.*}) catch unreachable;
             }
             total += n * t[1];
         }
         self.wave_worth += 30;
         self.wave_ct += 1;
+        const asteriod_ct = m.randu(0, 5);
+        for (0..asteriod_ct) |_| {
+            _ = main.spawn_asteriod();
+        }
+        // spawn some asteriods
     }
     pub fn init(a: Allocator) EnemeySpawner {
-        return .{.wave = std.AutoHashMap(esc.Entity, void).init(a)};
+        return .{.wave = std.AutoHashMap(esc.Entity, WormHoleTimer).init(a)};
     }
     pub fn deinit(self: *EnemeySpawner) void {
         self.wave.deinit();

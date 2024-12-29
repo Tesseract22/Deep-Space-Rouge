@@ -28,6 +28,7 @@ pub const Vel = struct {
 pub const View = struct {
     tex: *rl.Texture2D,
     size: ?m.Vec2 = null,
+    tint: rl.Color = rl.WHITE,
 };
 pub const Input = struct {
     mouse: bool = false,
@@ -57,7 +58,11 @@ pub const Weapon = struct {
     pub fn get_effect(weapon: *Weapon, idx: isize) ?*ShootEffect {
         if (idx < -1) return null;
         if (idx == -1) return &weapon.base_effect;
-        return &weapon.effects.keys()[@intCast(idx)];
+        return &weapon.effects.values()[@intCast(idx)];
+    }
+    pub fn append_effect(w: *Weapon, id: usize, effect: *ShootEffect) void {
+        effect.on_load(w, effect);
+        w.effects.put(id, effect.*) catch unreachable;
     }
     pub fn basic_base_shoot(
         weapon: *Weapon, effect: *ShootEffect, 
@@ -75,22 +80,39 @@ pub const Weapon = struct {
         syss.add_comp(bullet, CollisionSet1 {});
         syss.add_comp(bullet, team);
     }
+    pub fn basic_load_nothing(weapon: *Weapon, effect: *ShootEffect) void {
+        _ = weapon;
+        _ = effect;
+    }
+
     pub fn deinit(self: *Weapon) void {
         self.effects.deinit();
     }
     pub const ShootEffect = struct {
 
         pub const ShootFn = fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void;
+        pub const LoadFn = fn (*Weapon, *ShootEffect) void;
         shoot_fn: *const fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void,
+        on_load: *const LoadFn = basic_load_nothing, 
+        on_unload: *const LoadFn = basic_load_nothing,
         data: Data,
         const Data = union(enum) {
             counter: usize,
         };
+        
     };
-    pub const ShootEffects = std.AutoArrayHashMap(ShootEffect, void);
+    pub fn clear_all_effects(w: *Weapon) void {
+        var it = w.effects.iterator();
+        while (it.next()) |entry| {
+            entry.value_ptr.on_unload(w, entry.value_ptr);
+        }
+        w.effects.clearRetainingCapacity();
+    }
+    pub const ShootEffects = std.AutoArrayHashMap(usize, ShootEffect);
 };
 pub const WeaponHolder = struct {
     weapons: std.ArrayList(Weapon),
+    fire_rate: f32 = 1,
     pub fn init(a: Allocator) WeaponHolder {
         return .{.weapons = std.ArrayList(Weapon).init(a) };
     }
@@ -218,7 +240,10 @@ pub const Dead = struct {
 
 };
 pub const Collision = struct {
-    other: esc.Entity,
+    // FIXME dynamic allocation?
+    // FIXME or maybe a smarter way (event system)
+    pub const MAX_COLLISION_EVENT = 10;
+    others: std.BoundedArray(esc.Entity, MAX_COLLISION_EVENT) = std.BoundedArray(esc.Entity, MAX_COLLISION_EVENT).init(0) catch unreachable,
 };
 pub const CollisionSet1 = struct {};
 pub const CollisionSet2 = struct {};
