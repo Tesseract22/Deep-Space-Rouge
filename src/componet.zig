@@ -9,10 +9,15 @@ const sys = @import("system.zig");
 const esc = @import("esc_engine.zig");
 
 const syss = &sys.syss;
-pub const Team = enum {
-    friendly,
-    enemey,
-    neutral,
+pub const Target = struct {
+    pub const Team = enum(u8) {
+        friendly = 0,
+        enemey,
+        neutral,
+    };
+    team: Team,
+    prior: usize = 10,
+    pub const TEAM_LEN = @typeInfo(Team).@"enum".fields.len;
 };
 pub const Pos = struct {
     pos: m.Vec2 = .{0, 0},
@@ -55,6 +60,11 @@ pub const Weapon = struct {
     effects: ShootEffects,
 
     sound: ?*rl.Sound = null,
+    pub fn clone(w: Weapon) Weapon {
+        var w2 = w;
+        w2.effects = w.effects.clone() catch unreachable;
+        return w2;
+    }
     pub fn get_effect(weapon: *Weapon, idx: isize) ?*ShootEffect {
         if (idx < -1) return null;
         if (idx == -1) return &weapon.base_effect;
@@ -66,7 +76,7 @@ pub const Weapon = struct {
     }
     pub fn basic_base_shoot(
         weapon: *Weapon, effect: *ShootEffect, 
-        vel: Vel, pos: Pos, team: Team,
+        vel: Vel, pos: Pos, team: Target,
         idx: isize) void 
     {
         _ = effect;
@@ -90,16 +100,20 @@ pub const Weapon = struct {
     }
     pub const ShootEffect = struct {
 
-        pub const ShootFn = fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void;
+        pub const ShootFn = fn (*Weapon, *ShootEffect, Vel, Pos, Target, idx: isize) void;
         pub const LoadFn = fn (*Weapon, *ShootEffect) void;
-        shoot_fn: *const fn (*Weapon, *ShootEffect, Vel, Pos, Team, idx: isize) void,
+        shoot_fn: *const fn (*Weapon, *ShootEffect, Vel, Pos, Target, idx: isize) void,
         on_load: *const LoadFn = basic_load_nothing, 
         on_unload: *const LoadFn = basic_load_nothing,
         data: Data,
         const Data = union(enum) {
             counter: usize,
+            turret: struct {
+                fire_rate: f32,
+            },
+            none,
         };
-        
+
     };
     pub fn clear_all_effects(w: *Weapon) void {
         var it = w.effects.iterator();
@@ -184,21 +198,46 @@ pub const ShipControl = struct {
 };
 
 pub const Ai = struct {
+    pub const AiTarget = struct {
+        target: Target,
+        e: esc.Entity,
+    };
+    pub fn target_cmp(ctx: void, a: AiTarget, b: AiTarget) std.math.Order {
+        _ = ctx;
+        if (a.target.prior == b.target.prior) return .eq;
+        if (a.target.prior > b.target.prior) return .lt;
+        return .gt;
+    }
+    pub const TargetQueue = std.PriorityQueue(AiTarget, void, target_cmp);
+    pub const Targets = [Target.TEAM_LEN]TargetQueue;
     state: union(enum) {
         hunter: HunterAi,
         crasher: CrasherAi,
     },
-    pub fn ai(self: *Ai, me: esc.Entity, player: esc.Entity, control: *ShipControl) void {
+
+    pub fn ai(self: *Ai, me: esc.Entity, targets: *Targets, control: *ShipControl) void {
         switch (self.state) {
-            inline else => |*state| state.ai(me, player, control),
+            inline else => |*state| state.ai(me, targets, control),
         }
 
     }
+    pub fn find_prior_target(me_target: Target, targets: *Targets) ?esc.Entity {
+        for (targets, 0..) |*team_targets, i| {
+            if (i == @intFromEnum(me_target.team)) continue;
+            if (team_targets.peek()) |t| {
+                return t.e;
+            }
+        } 
+        return null;
+
+    }
     pub const HunterAi = struct {
-        pub fn ai(self: *@This(), me: esc.Entity, player: esc.Entity, control: *ShipControl) void {
+        pub fn ai(self: *@This(), me: esc.Entity, targets: *Targets, control: *ShipControl) void {
             _ = self;
             const me_pos = syss.comp_man.get_comp(Pos, me) orelse return;
-            const player_pos = syss.comp_man.get_comp(Pos, player) orelse return;
+            const me_target = syss.comp_man.get_comp(Target, me) orelse return;
+            const target_e = find_prior_target(me_target.*, targets) orelse return;
+            const player_pos = syss.comp_man.get_comp(Pos, target_e) orelse return;
             control.turn_to_pos(me_pos.*, player_pos.pos);
 
             control.state.shoot = true;
@@ -207,10 +246,13 @@ pub const Ai = struct {
     };
     pub const CrasherAi = struct {
         const dash_radius = 1.5;
-        pub fn ai(self: *@This(), me: esc.Entity, player: esc.Entity, control: *ShipControl) void {
+        pub fn ai(self: *@This(), me: esc.Entity, targets: *Targets, control: *ShipControl) void {
             _ = self;
             const me_pos = syss.comp_man.get_comp(Pos, me) orelse return;
-            const player_pos = syss.comp_man.get_comp(Pos, player) orelse return;
+            const me_target = syss.comp_man.get_comp(Target, me) orelse return;
+            const target_e = find_prior_target(me_target.*, targets) orelse return;
+
+            const player_pos = syss.comp_man.get_comp(Pos, target_e) orelse return;
             const dist = m.v2dist(me_pos.pos, player_pos.pos);
             if (dist < dash_radius) {
                 control.state.dash = true;
@@ -328,7 +370,7 @@ pub const BuffHolder = struct {
 
 };
 pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Dead, DeadAnimation, Exp, Collision, assets.AnimationPlayer, Weapon, WeaponHolder, Bullet, 
-    CollisionSet1, CollisionSet2, Team, Ai, GemDropper, Collectible, Collector, BuffHolder};
+    CollisionSet1, CollisionSet2, Target, Ai, GemDropper, Collectible, Collector, BuffHolder};
 pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);
 

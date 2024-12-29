@@ -20,6 +20,7 @@ const conf = @import("config.zig");
 const utils = @import("utils.zig");
 const assets = @import("assets.zig");
 const main = @import("main.zig");
+const enemy = @import("enemy.zig");
 
 pub const Manager = esc.SystemManager(&comp.comp_types, &comp.event_types);
 pub var syss: Manager = undefined;
@@ -52,7 +53,9 @@ pub const Movement = struct {
             vel.rot *= 1 - vel.rot_drag * dt;
             pos.pos += vel.vel * m.splat(dt);
             pos.rot += vel.rot * dt;
-
+            // if (e == main.player) {
+            //     std.log.debug("player pos {}", .{pos.pos});
+            // }
             if (pos.roundabout)
                 pos.pos = m.round_about(pos.pos);
             // std.log.debug("entity: {} {}", .{e, pos.pos});
@@ -279,7 +282,10 @@ pub const Elastic = struct {
                 const total_m = mass + mass2;
                 const wx = mass2 / total_m;
                 // const wy = mass / total_m;
-                const d = m.v2n(pos.pos - pos2.pos);
+                const d = if (dist == 0) 
+                    m.Vec2 {m.randSign() * m.randf(0.0001, 0.001), m.randSign() * m.randf(0.0001, 0.001)} 
+                else 
+                    m.v2n(pos.pos - pos2.pos);
                 const xs = m.v2dot(vel.vel, d);
                 const ys = m.v2dot(vel2.vel, d);
                 const s = xs - ys;
@@ -291,8 +297,8 @@ pub const Elastic = struct {
                 // std.log.debug("elastic e: {}", .{e});
                 // vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
                 const diff = (size + size2) / 2 - dist;
-                pos.pos += m.splat(0.5 * diff) * d;
-
+                // pos.pos += m.splat(wx * diff) * d;
+                _ = diff;
                 if (s >= 0) continue;
                 vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
 
@@ -430,10 +436,10 @@ pub const GemDropper = struct {
 
 pub const Weapon = struct {
     pub const set = .{
-        CompMan.sig_from_types(&.{comp.Weapon, comp.Pos, comp.ShipControl, comp.Team}),
-        CompMan.sig_from_types(&.{comp.WeaponHolder, comp.Pos, comp.ShipControl, comp.Team}),
+        CompMan.sig_from_types(&.{comp.Weapon, comp.Pos, comp.ShipControl, comp.Target}),
+        CompMan.sig_from_types(&.{comp.WeaponHolder, comp.Pos, comp.ShipControl, comp.Target}),
     };
-    pub fn update_weapon(holder: ?*comp.WeaponHolder, e: Entity, dt: f32, control: *comp.ShipControl, weapon: *comp.Weapon, team: *comp.Team, ship_pos: *comp.Pos) void {
+    pub fn update_weapon(holder: ?*comp.WeaponHolder, e: Entity, dt: f32, control: *comp.ShipControl, weapon: *comp.Weapon, team: *comp.Target, ship_pos: *comp.Pos) void {
         const holder_default = comp.WeaponHolder {.weapons = undefined};
         const holder_actual = holder orelse &holder_default;
         if (weapon.cool_down > 0) {
@@ -475,7 +481,7 @@ pub const Weapon = struct {
             const e = entry.key_ptr.*;
             const control = syss.comp_man.get_comp(comp.ShipControl, e) orelse unreachable;
             const weapon = syss.comp_man.get_comp(comp.Weapon, e) orelse unreachable;
-            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
+            const team = syss.comp_man.get_comp(comp.Target, e) orelse unreachable;
             const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
 
             update_weapon(null, e, dt, control, weapon, team, ship_pos);
@@ -486,7 +492,7 @@ pub const Weapon = struct {
             const e = entry.key_ptr.*;
             const control = syss.comp_man.get_comp(comp.ShipControl, e) orelse unreachable;
             const weapon_holder = syss.comp_man.get_comp(comp.WeaponHolder, e) orelse unreachable;
-            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
+            const team = syss.comp_man.get_comp(comp.Target, e) orelse unreachable;
             const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             var size: f32 = 0.1;
             if (syss.comp_man.get_comp(comp.Size, e)) |comp_size| {
@@ -508,7 +514,7 @@ pub const Weapon = struct {
 
 
 pub const Bullet = struct {
-    pub const set = .{CompMan.sig_from_types(&.{comp.Bullet, comp.Collision, comp.Pos, comp.Team})};
+    pub const set = .{CompMan.sig_from_types(&.{comp.Bullet, comp.Collision, comp.Pos, comp.Target})};
     pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @alignCast(@ptrCast(ptr));
         // std.log.debug("Physic System update", .{});
@@ -518,14 +524,14 @@ pub const Bullet = struct {
             const e = entry.key_ptr.*;
             const bullet = syss.comp_man.get_comp(comp.Bullet, e) orelse unreachable;
             const collision = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
-            const team = syss.comp_man.get_comp(comp.Team, e) orelse unreachable;
+            const team = syss.comp_man.get_comp(comp.Target, e) orelse unreachable;
 
             for (collision.others.constSlice()) |other| {
 
                 const health = syss.comp_man.get_comp(comp.Health, other) orelse continue;
-                const other_team = syss.comp_man.get_comp(comp.Team, other) orelse continue;
+                const other_team = syss.comp_man.get_comp(comp.Target, other) orelse continue;
 
-                if (team.* == other_team.*) continue;
+                if (team.team == other_team.team) continue;
                 health.hp -= bullet.dmg;
 
                 const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
@@ -546,12 +552,38 @@ pub const Bullet = struct {
 };
 
 pub const ShipAi = struct {
-    pub const set = .{CompMan.sig_from_types(&.{comp.ShipControl, comp.Ai})};
-    player: *Entity,
+    pub const set = .{
+        CompMan.sig_from_types(&.{comp.ShipControl, comp.Ai}),
+        CompMan.sig_from_types(&.{comp.Health, comp.Target}),
+    };
+    const TEAM_LEN = comp.Target.TEAM_LEN;
+    const TargetQueue = comp.Ai.TargetQueue;
+    targets: [TEAM_LEN]TargetQueue,
+    pub fn init() ShipAi {
+        var ai = ShipAi {.targets = undefined};
+        for (0..TEAM_LEN) |t| {
+            ai.targets[t] = TargetQueue.init(main.a, void {});
+        }
+        return ai;
+    } 
+    pub fn deinit(self: *ShipAi) void {
+        for (0..TEAM_LEN) |t| {
+            self.targets[t].deinit();
+        }
+    }
+    // TargetQueue.peek
+
+    // enemy_enemy: std.PriorityQueue
     pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
         const self: *@This() = @alignCast(@ptrCast(ptr));
         // std.log.debug("Physic System update", .{});
         // std.log.debug("ai entities: {} {}", .{entities[0].count(), });
+        var it2 = entities[1].iterator();
+        while (it2.next()) |entry| {
+            const e = entry.key_ptr.*;
+            const target = syss.comp_man.get_comp(comp.Target, e) orelse unreachable;
+            self.targets[@intFromEnum(target.team)].add(.{.target = target.*, .e = e}) catch unreachable;
+        }
         var it = entities[0].iterator();
         while (it.next()) |entry| {
             const e = entry.key_ptr.*;
@@ -559,8 +591,14 @@ pub const ShipAi = struct {
             const ai = syss.comp_man.get_comp(comp.Ai, e) orelse unreachable;
 
             control.reset_state();
-            ai.ai(e, self.player.*, control);
+            ai.ai(e, &self.targets, control);
         }
+        for (&self.targets) |*target| {
+            // FIXME find a way to clear and retain capacity
+            target.deinit();
+            target.* = TargetQueue.init(main.a, void{});
+        }
+
         _ = dt;
     }
 };
@@ -640,8 +678,10 @@ pub const EnemeySpawner = struct {
     pub const set = .{CompMan.sig_from_types(&.{comp.Dead})};
     const SpawnFn = fn (pos: comp.Pos) esc.Entity;
     const enemy_weights = [_]std.meta.Tuple(&[_]type{ *const SpawnFn, usize }){ 
-        .{ main.spawn_crasher, 15 }, 
-        .{ main.spawn_hunter, 30 } 
+        .{ enemy.spawn_crasher, 9 }, 
+        .{ enemy.spawn_hunter, 30 },
+        .{ enemy.spawn_carrier, 60 }, 
+
     };
     const wave_cd = 2.0;
     const wormhole_teleport_t = 3;

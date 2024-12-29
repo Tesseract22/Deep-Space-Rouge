@@ -114,3 +114,8 @@ pub fn rand_pos() Vec2 {
 pub fn rand_rot() f32 {
     return randf(0, 2*std.math.pi);
 }
+
+pub fn measure_tex(tex: rl.Texture) Vec2 {
+    const rlv = rl.Vector2 {.x = @floatFromInt(tex.width), .y = @floatFromInt(tex.height)};
+    return srl2sizen(rlv) * splat(conf.pixelMul);
+}

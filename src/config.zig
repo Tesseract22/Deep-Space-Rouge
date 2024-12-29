@@ -7,7 +7,7 @@ pub const screenwf: f32 = @floatFromInt(screenw);
 pub const aniSpeed: f32 = 4;
 
 
-pub const pixelMul: f32 = 2.5;
+pub const pixelMul: f32 = 2;
 pub var debug: bool = false;
 
 

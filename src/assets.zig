@@ -42,6 +42,9 @@ pub const Texs = struct {
     pub var space:          rl.Texture2D = undefined;
     
     pub var fighter:        rl.Texture2D = undefined;
+    pub var carrier:        rl.Texture2D = undefined;
+    pub var turret:         rl.Texture2D = undefined;
+    pub var turret_item:    rl.Texture2D = undefined;
     pub var bullet:         rl.Texture2D = undefined;
     pub var bullet_2:       rl.Texture2D = undefined;
     pub var asteroid:       rl.Texture2D = undefined;
@@ -94,6 +97,7 @@ pub const Sounds = struct {
     pub var gem_pickup_2:   rl.Sound = undefined;
     pub var gem_pickup_3:   rl.Sound = undefined;
     pub var shoot:          rl.Sound = undefined;
+    pub var shoot2:         rl.Sound = undefined;
     pub var bullet_hit:     rl.Sound = undefined;
     pub var level_up:       rl.Sound = undefined;
     pub var collide:        rl.Sound = undefined;

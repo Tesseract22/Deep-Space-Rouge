@@ -10,6 +10,7 @@ const esc = @import("esc_engine.zig");
 const utils = @import("utils.zig");
 const comp = @import("componet.zig");
 const main = @import("main.zig");
+const shoot_effect = @import("shoot_effect.zig");
 
 const Weapon = comp.Weapon;
 const ShootEffect = Weapon.ShootEffect;
@@ -40,6 +41,7 @@ pub const Item = struct {
         // .{ Item.energy_bullet, 1 },
         .{ Item.triple_shots, 1 },
         .{ Item.basic_gun, 1 },
+        .{ Item.turret, 1},
         // .{ Item.machine_gun, 1 },
     };
 
@@ -67,48 +69,21 @@ pub const Item = struct {
             .type = .{.weapon = weapon_comp}};
     }
     pub fn triple_shots() Item {
-        const triple_shot_impl = struct {
-            pub fn shoot(
-                weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
-                vel: comp.Vel, pos: comp.Pos, team: comp.Team,
-                idx: isize) void 
-            {
-                _ = effect;
-                const prev = weapon.get_effect(idx - 1) orelse return;
-                var pos2 = pos;
-                var vel2 = vel;
-                prev.shoot_fn(weapon, prev, vel, pos, team, idx - 1);
-
-                vel2.vel = m.v2rot(vel.vel, rl.PI / 12);
-                pos2.rot = pos.rot + rl.PI / 12;
-                prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
-
-                vel2.vel = m.v2rot(vel.vel, -rl.PI / 12);
-                pos2.rot = pos.rot  - rl.PI / 12;
-                prev.shoot_fn(weapon, prev, vel2, pos2, team, idx - 1);
-            }
-            pub fn load(w: *Weapon, effect: *ShootEffect) void {
-                _ = effect;
-                w.fire_rate /= 2;
-            }
-            pub fn un_load(w: *Weapon, effect: *ShootEffect) void {
-                _ = effect;
-                w.fire_rate *= 2;
-            }
-        };
-        const effect = ShootEffect {
-            .data = undefined,
-            .shoot_fn = triple_shot_impl.shoot,
-            .on_load = triple_shot_impl.load,
-            .on_unload = triple_shot_impl.un_load,
-        };
-
         return .{
             .id = new_id(), 
             .tex = &assets.Texs.triple_shots, 
             .name = "triple shot", 
             .shape = .{ .{ 0, 0 }, .{ 0, 1 }, .{ 1, 1 }, null, null },
-            .type = .{.effect = effect }};
+            .type = .{.effect = shoot_effect.triple_shot }};
+    }
+    pub fn turret() Item {
+        return .{
+            .id = new_id(), 
+            .tex = &assets.Texs.turret_item, 
+            .name = "turret", 
+            .shape = .{ .{ 0, 0 }, null, null, null, null },
+            .type = .{.effect = shoot_effect.turret }
+        };
     }
 };
 
