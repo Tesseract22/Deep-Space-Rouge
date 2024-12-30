@@ -235,14 +235,14 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    const first_item_id = invent.append_item(inventory.Item.basic_gun());
+    const first_item_id = invent.append_item(inventory.Item.machine_gun());
     // invent.append_item(inventory.Item.basic_gun());
     // invent.append_item(inventory.Item.triple_shot());
     std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
 
 
-    _ = invent.append_item(inventory.Item.turret());
-    _ = invent.append_item(inventory.Item.triple_shots());
+    // _ = invent.append_item(inventory.Item.turret());
+    // _ = invent.append_item(inventory.Item.triple_shots());
 
     invent.cal_item();
 
@@ -296,9 +296,9 @@ pub fn main() !void {
                     Annouce("Level Up! (Open Inventory With [I])", 2);
                     invent.spawn_item();
                     var spd_buff = Buff.init_simple(comp.ShipControl, "thurst", 2.5, 5);
-                    var fire_rate_buff = Buff.init_simple(comp.WeaponHolder, "fire_rate", 1, 5);
+                    var hp_buff = Buff.init_simple(comp.Health, "regen", 10, 5);
                     system.Buff.try_apply(player, &spd_buff);
-                    system.Buff.try_apply(player, &fire_rate_buff);
+                    system.Buff.try_apply(player, &hp_buff);
                 }
             }
             if (dead.player_dead) {

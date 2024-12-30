@@ -418,7 +418,7 @@ pub const GemDropper = struct {
                     syss.add_comp(g, comp.Collectible {
                         .collect_radius = 0.1, 
                         .attract_radius = 0.2, 
-                        .sound = comp.GemDropper.Gem.Sounds[m.randGen.next() % comp.GemDropper.Gem.MAX_LEVEL],
+                        .sound = comp.GemDropper.Gem.Sounds[@as(usize, @intCast(m.randGen.next())) % comp.GemDropper.Gem.MAX_LEVEL],
                         .data = .{.gem = .{.level = @intCast(lvl)}},
                     });
                     // g.lvl = @intCast(lvl);
@@ -737,7 +737,7 @@ pub const EnemeySpawner = struct {
 
         var total: usize = 0;
         while (total < self.wave_worth) {
-            const t = enemy_weights[m.randGen.next() % enemy_weights.len];
+            const t = enemy_weights[@as(usize, @intCast(m.randGen.next())) % enemy_weights.len];
             const max_t: usize = @max((self.wave_worth - total) / t[1], 1);
             const n: usize = m.randu(1, max_t);
             for (0..n) |_| {

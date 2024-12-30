@@ -11,6 +11,7 @@ const utils = @import("utils.zig");
 const comp = @import("componet.zig");
 const main = @import("main.zig");
 const shoot_effect = @import("shoot_effect.zig");
+const weapon = @import("weapon.zig");
 
 const Weapon = comp.Weapon;
 const ShootEffect = Weapon.ShootEffect;
@@ -19,7 +20,7 @@ const Self = @This();
 
 pub fn spawn_item(self: *Self) void {
 
-    const i = Item.item_weight[m.randGen.next() % Item.item_weight.len];
+    const i = Item.item_weight[@as(usize, @intCast(m.randGen.next())) % Item.item_weight.len];
     const item = i[0]();
     // std.log.debug("spawned: {s}", .{item.name});
     _ = self.append_item(item);
@@ -42,7 +43,7 @@ pub const Item = struct {
         .{ Item.triple_shots, 1 },
         .{ Item.basic_gun, 1 },
         .{ Item.turret, 1},
-        // .{ Item.machine_gun, 1 },
+        .{ Item.machine_gun, 1 },
     };
 
     const ItemType = union(enum) {
@@ -54,19 +55,12 @@ pub const Item = struct {
         return item_id;
     }
     pub fn basic_gun() Item {
-        const weapon_comp = comp.Weapon {
-            .fire_rate = 5, 
-            .sound = &assets.Sounds.shoot, 
-            .bullet = .{ .dmg = 30, .sound = &assets.Sounds.bullet_hit, .tex = &assets.Texs.bullet, .size = 0.10, },
-            .effects = comp.Weapon.ShootEffects.init(main.a),
-        };
-
         return .{
             .id = new_id(), 
             .tex = &assets.Texs.weapon_1, 
             .name = "basic_gun", 
             .shape = .{ .{ 0, 0 }, .{ 0, 1 }, null, null, null },
-            .type = .{.weapon = weapon_comp}};
+            .type = .{.weapon = weapon.basic_gun()}};
     }
     pub fn triple_shots() Item {
         return .{
@@ -75,6 +69,15 @@ pub const Item = struct {
             .name = "triple shot", 
             .shape = .{ .{ 0, 0 }, .{ 0, 1 }, .{ 1, 1 }, null, null },
             .type = .{.effect = shoot_effect.triple_shot }};
+    }
+    pub fn machine_gun() Item {
+        return .{
+            .id = new_id(), 
+            .tex = &assets.Texs.machine_gun, 
+            .name = "machine gun", 
+            .shape = .{ .{ 0, 0 }, .{ 1, 0 }, .{ 1, 1 }, null, null },
+            .type = .{.weapon = weapon.machine_gun()}};
+
     }
     pub fn turret() Item {
         return .{
