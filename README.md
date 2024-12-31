@@ -1,5 +1,7 @@
-to run, install lastest zig (https://ziglang.org/download/), and
-
+**Under Active Development**
+## Build & Run
+Install zig (currently 0.14.0-dev.2571+01081cc8e), and
 `zig build run`
 
-remember to clone recursively
+This game will keep up with the master branch of zig, until release.
+
