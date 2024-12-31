@@ -123,6 +123,8 @@ pub fn spawn_asteriod() Entity {
 
 }
 pub var player: Entity = undefined;
+pub var camera_pos: m.Vec2 = .{0, 0};
+pub var camera_zoom: f32 = 1;
 pub fn draw_hud() void {
     // const healthbar_pos = Vec
     rl.DrawFPS(20, 20);
@@ -265,7 +267,6 @@ pub fn main() !void {
             //
             if (rl.IsKeyPressed(rl.KEY_I)) {
                 pause = !pause;
-
             }
             if (pause) {
                 dt = 0;
@@ -277,6 +278,18 @@ pub fn main() !void {
             // }
             if (rl.IsKeyPressed(rl.KEY_K)) {
                     _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
+            }
+            if (rl.IsKeyPressed(rl.KEY_UP)) {
+                camera_pos[1] += 0.5 * dt;
+            }
+            if (rl.IsKeyPressed(rl.KEY_DOWN)) {
+                camera_pos[1] -= 0.5 * dt;
+            }
+            if (rl.IsKeyPressed(rl.KEY_RIGHT)) {
+                camera_pos[0] += 0.5 * dt;
+            }
+            if (rl.IsKeyPressed(rl.KEY_LEFT)) {
+                camera_pos[0] -= 0.5 * dt;
             }
 
             syss.update(dt);

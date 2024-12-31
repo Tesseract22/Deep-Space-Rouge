@@ -80,7 +80,7 @@ pub const View = struct {
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const view = syss.comp_man.get_comp(comp.View, e) orelse unreachable;
 
-            utils.DrawTextureTint(view.tex.*, pos.pos, view.size, pos.rot, view.tint);
+            utils.DrawTextureTint(view.tex.*, pos.pos - main.camera_pos, view.size, pos.rot, view.tint);
             // if (syss.comp_man.get_comp(comp.Size, e)) |cs| {
 
             //     for (cs.cs) |c| {
