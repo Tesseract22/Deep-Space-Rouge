@@ -39,7 +39,7 @@ const turret_impl = struct {
             syss.add_comp(bullet, turret_pos);
             syss.add_comp(bullet, turret_vel);
             syss.add_comp(bullet, comp.View {.tex = tex, .size = turret_size});
-            syss.add_comp(bullet, comp.Size {.size = turret_size[0]});
+            syss.add_comp(bullet, comp.Size.simple(turret_size[0] * 0.75));
             syss.add_comp(bullet, comp.Mass {.mass = turret_size[0] * turret_size[1] * 0.5});
             syss.add_comp(bullet, comp.ShipControl {.thurst = 0, .turn_thurst = 10});
             syss.add_comp(bullet, comp.Ai {.state = .{ .hunter = .{}}});

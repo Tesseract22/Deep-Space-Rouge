@@ -85,7 +85,7 @@ pub const Weapon = struct {
         syss.add_comp(bullet, pos);
         syss.add_comp(bullet, vel);
         syss.add_comp(bullet, View {.tex = weapon.bullet.tex, .size = m.splat(weapon.bullet.size)});
-        syss.add_comp(bullet, Size {.size = weapon.bullet.size});
+        syss.add_comp(bullet, Size.simple(weapon.bullet.size));
         syss.add_comp(bullet, weapon.bullet);
         syss.add_comp(bullet, CollisionSet1 {});
         syss.add_comp(bullet, team);
@@ -269,7 +269,16 @@ pub const Ai = struct {
 };
 
 pub const Size = struct {
-    size: f32,
+    pub const Circle = struct {
+        size: f32 = 0,
+        pos: m.Vec2 = .{0, 0},
+    };
+    cs: [3]Circle = [_]Circle {Circle{}}**3,
+    pub fn simple(size: f32) Size {
+        var res = Size {};
+        res.cs[0].size = size;
+        return res;
+    }
 };
 pub const Mass = struct {
     mass: f32,
@@ -290,7 +299,12 @@ pub const Collision = struct {
     // FIXME dynamic allocation?
     // FIXME or maybe a smarter way (event system)
     pub const MAX_COLLISION_EVENT = 10;
-    others: std.BoundedArray(esc.Entity, MAX_COLLISION_EVENT) = std.BoundedArray(esc.Entity, MAX_COLLISION_EVENT).init(0) catch unreachable,
+    pub const Other = struct {
+        e: esc.Entity,
+        my_sub: u8,
+        other_sub: u8,
+    };
+    others: std.BoundedArray(Other, MAX_COLLISION_EVENT) = std.BoundedArray(Other, MAX_COLLISION_EVENT).init(0) catch unreachable,
 };
 pub const CollisionSet1 = struct {};
 pub const CollisionSet2 = struct {};

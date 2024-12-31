@@ -41,7 +41,7 @@ pub fn spawn_hunter(pos: comp.Pos) Entity {
         .thurst = 1.5,
         .turn_thurst = 12,
     });
-    syss.add_comp(e, comp.Size {.size = size[0]});
+    syss.add_comp(e, comp.Size.simple(size[0]));
     syss.add_comp(e, comp.Mass {.mass = size[0] * size[1]});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, });
     syss.add_comp(e, comp.DeadAnimation { .dead = &Assets.Anims.explode_blue});
@@ -78,7 +78,7 @@ pub fn spawn_crasher(pos: comp.Pos) Entity {
         .turn_thurst = 20,
         .state = .{.dash_cd = 5},
     });
-    syss.add_comp(e, comp.Size {.size = size[0]});
+    syss.add_comp(e, comp.Size.simple(size[0]));
     syss.add_comp(e, comp.Mass {.mass = size[0] * size[1]});
     syss.add_comp(e, comp.Health {.hp = 75, .max = 75, });
     syss.add_comp(e, comp.DeadAnimation { .dead = &Assets.Anims.explode_blue});
@@ -98,7 +98,7 @@ pub fn spawn_crasher(pos: comp.Pos) Entity {
 
 pub fn spawn_carrier(pos: comp.Pos) Entity {
     const e: Entity = syss.new_entity();
-    const size = 0.08;
+    const size = m.measure_tex(Assets.Texs.carrier);
     var new_pos = pos;
     new_pos.roundabout = true;
     syss.add_comp(e, new_pos);
@@ -114,8 +114,11 @@ pub fn spawn_carrier(pos: comp.Pos) Entity {
         .thurst = 5,
         .turn_thurst = 4,
     });
-    syss.add_comp(e, comp.Size {.size = size * 2});
-    syss.add_comp(e, comp.Mass {.mass = size * size});
+    var coll_size = comp.Size {};
+    coll_size.cs[0] = .{.size = size[0], .pos = .{0, size[1]*0.15}};
+    coll_size.cs[1] = .{.size = size[0]/2, .pos = .{0, size[1]*-0.25}};
+    syss.add_comp(e, coll_size);
+    syss.add_comp(e, comp.Mass {.mass = size[0] * size[1]});
     syss.add_comp(e, comp.Health {.hp = 500, .max = 250, .regen = 5});
     syss.add_comp(e, comp.DeadAnimation { .dead = &Assets.Anims.explode_blue});
     var weapon_comp = weapon.machine_gun();

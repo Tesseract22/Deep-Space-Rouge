@@ -81,8 +81,11 @@ pub const View = struct {
             const view = syss.comp_man.get_comp(comp.View, e) orelse unreachable;
 
             utils.DrawTextureTint(view.tex.*, pos.pos, view.size, pos.rot, view.tint);
-            // if (syss.comp_man.get_comp(comp.Size, e)) |size| {
-            //     rl.DrawCircleLinesV(m.coordn2srl(pos.pos), m.size2s(size.size/2), rl.WHITE);
+            // if (syss.comp_man.get_comp(comp.Size, e)) |cs| {
+
+            //     for (cs.cs) |c| {
+            //         rl.DrawCircleLinesV(m.coordn2srl(pos.pos + m.v2rot(c.pos, pos.rot)), m.size2s(c.size/2), rl.WHITE);
+            //     }
             // }
             // std.log.debug("entity: {} {} {}", .{e, pos.pos, view.radius});
         }
@@ -211,7 +214,7 @@ pub fn Collision(comptime Set: type) type {
             while (it.next()) |entry| {
                 const e = entry.*;
                 const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
-                const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
+                const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable);
 
                 var it2 = it;
                 // _ = it2.next() orelse continue;
@@ -219,27 +222,32 @@ pub fn Collision(comptime Set: type) type {
                     const e2 = entry2.*;
                     // std.log.debug("collisio {} {}", .{e, e2});
                     const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse unreachable;
-                    const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable).size;
-
-                    const dist = m.v2dist(pos.pos, pos2.pos);
-                    if (dist < (size + size2) / 2) {
-                        generate_collision_event(e, e2);
-                        generate_collision_event(e2, e);
+                    const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse unreachable);
+                    outer: for (size.cs, 0..) |c1, j1| {
+                        if (c1.size == 0) break :outer;
+                        for (size2.cs, 0..) |c2, j2| {
+                            if (c2.size == 0) break :outer;
+                            const dist = m.v2dist(m.v2rot(c1.pos, pos.rot) + pos.pos, m.v2rot(c2.pos, pos2.rot) + pos2.pos);
+                            if (dist < (c1.size + c2.size) / 2) {
+                                generate_collision_event(e, e2, j1, j2);
+                                generate_collision_event(e2, e, j2, j1);
+                                break :outer;
+                            }
+                        }
                     }
                 }
 
             }
-
             @constCast(&entities[0]).unlockPointers();
             _ = dt;
             _ = self;
         }
-        pub fn generate_collision_event(e1: Entity, e2: Entity) void {
+        pub fn generate_collision_event(e1: Entity, e2: Entity, my_sub: usize, other_sub: usize) void {
             if (syss.get_comp(e1, comp.Collision)) |coll| {
-                coll.others.append(e2) catch {}; // more collisions are simply ignored, for now
+                coll.others.append(.{.e = e2, .my_sub = @intCast(my_sub), .other_sub = @intCast(other_sub)}) catch {}; // more collisions are simply ignored, for now
             } else {
                 var coll = comp.Collision {};
-                coll.others.append(e2) catch unreachable;
+                coll.others.append(.{.e = e2, .my_sub = @intCast(my_sub), .other_sub = @intCast(other_sub)}) catch unreachable;
                 syss.add_comp(e1, coll);
             }
 
@@ -265,18 +273,19 @@ pub const Elastic = struct {
             const vel = syss.comp_man.get_comp(comp.Vel, e) orelse unreachable;
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const mass = (syss.comp_man.get_comp(comp.Mass, e) orelse unreachable).mass;
-            const size = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).size;
             // _ = it2.next() orelse continue;
-        
-            const collision = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
-            for (collision.others.constSlice()) |e2| {
 
+            const collisions = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
+            for (collisions.others.constSlice()) |coll| {
+
+                const c1 = (syss.comp_man.get_comp(comp.Size, e) orelse unreachable).cs[coll.my_sub];
                 //std.log.debug("elastic e: {}", .{e});
                 // std.log.debug("collisio {} {}", .{e, e2});
+                const e2 = coll.e;
                 const mass2 = (syss.comp_man.get_comp(comp.Mass, e2) orelse continue).mass;
                 const vel2 = syss.comp_man.get_comp(comp.Vel, e2) orelse continue;
                 const pos2 = syss.comp_man.get_comp(comp.Pos, e2) orelse continue;
-                const size2 = (syss.comp_man.get_comp(comp.Size, e2) orelse continue).size;
+                const c2 = (syss.comp_man.get_comp(comp.Size, e2) orelse continue).cs[coll.other_sub];
 
 
                 const dist = m.v2dist(pos.pos, pos2.pos);
@@ -297,9 +306,9 @@ pub const Elastic = struct {
                 // }
                 // std.log.debug("elastic e: {}", .{e});
                 // vel2.vel += m.splat(wy * (1 + elastic) * s) * d;
-                const diff = (size + size2) / 2 - dist;
-                // pos.pos += m.splat(wx * diff) * d;
-                _ = diff;
+                const diff = (c1.size + c2.size) / 2 - m.v2dist(pos.pos + m.v2rot(c1.pos, pos.rot), pos2.pos + m.v2rot(c2.pos, pos2.rot));
+                pos.pos += m.splat(wx * diff) * d;
+                // _ = diff;
                 if (s >= 0) continue;
                 vel.vel -= m.splat(wx * (1 + elastic) * s) * d;
 
@@ -497,7 +506,7 @@ pub const Weapon = struct {
             const ship_pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             var size: f32 = 0.1;
             if (syss.comp_man.get_comp(comp.Size, e)) |comp_size| {
-                size = comp_size.size;
+                size = comp_size.cs[0].size;
             }
             const gap = size / @as(f32, @floatFromInt(weapon_holder.weapons.items.len + 1));
             var pos = ship_pos.*;
@@ -527,8 +536,8 @@ pub const Bullet = struct {
             const collision = syss.comp_man.get_comp(comp.Collision, e) orelse unreachable;
             const team = syss.comp_man.get_comp(comp.Target, e) orelse unreachable;
 
-            for (collision.others.constSlice()) |other| {
-
+            for (collision.others.constSlice()) |coll| {
+                const other = coll.e;
                 const health = syss.comp_man.get_comp(comp.Health, other) orelse continue;
                 const other_team = syss.comp_man.get_comp(comp.Target, other) orelse continue;
 

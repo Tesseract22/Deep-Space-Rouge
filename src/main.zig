@@ -57,7 +57,7 @@ fn spawn_player(e: Entity) void {
     });
     syss.add_comp(e, comp.Input {});
     syss.add_comp(e, comp.WeaponHolder.init(a));
-    syss.add_comp(e, comp.Size {.size = size[0]});
+    syss.add_comp(e, comp.Size.simple(size[0]));
     syss.add_comp(e, comp.Mass {.mass = size[0] * size[1]});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, .regen = 1});
     syss.add_comp(e, comp.DeadAnimation {.dead = &Assets.Anims.explode_blue, .dead_size = null});
@@ -112,7 +112,7 @@ pub fn spawn_asteriod() Entity {
     var ap = AnimationPlayer{ .anim = &Assets.Anims.asteroid };
     // std.log.debug("frame {} {}", .{ap.curr_frame, ap.anim.frames.items.len});
     syss.add_comp(e, comp.View {.tex = @constCast(ap.play(0) orelse unreachable), .size = m.splat(size*2)});
-    syss.add_comp(e, comp.Size {.size = size*2});
+    syss.add_comp(e, comp.Size.simple(size*2));
     syss.add_comp(e, comp.Mass {.mass = size * size * 3});
     syss.add_comp(e, comp.Health {.hp = 100, .max = 100, });
     syss.add_comp(e, comp.DeadAnimation {.dead = ap.anim, .dead_size = m.splat(size*2)});
@@ -125,6 +125,7 @@ pub fn spawn_asteriod() Entity {
 pub var player: Entity = undefined;
 pub fn draw_hud() void {
     // const healthbar_pos = Vec
+    rl.DrawFPS(20, 20);
     const len = 1.5;
     const hei = 0.005;
     const hp_color = rl.RED;
@@ -178,7 +179,7 @@ pub fn main() !void {
     a = gpa.allocator();
 
     rl.InitWindow(conf.screenw, conf.screenh, "Deep Space Rouge");
-    rl.SetTargetFPS(144);
+    rl.SetTargetFPS(60);
     rl.SetTraceLogLevel(rl.LOG_ERROR);
     defer rl.CloseWindow();
     Assets.load();
@@ -275,7 +276,7 @@ pub fn main() !void {
             //     _ = spawn_asteriod();
             // }
             if (rl.IsKeyPressed(rl.KEY_K)) {
-                    _ = enemy.spawn_crasher(comp.Pos {.pos = m.rand_pos() });
+                    _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
             }
 
             syss.update(dt);
