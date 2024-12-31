@@ -29,7 +29,7 @@ pub fn machine_gun() Weapon {
     return Weapon {
         .cool_down = 0,
         .fire_rate = 10, 
-        .bullet_spd = 1,
+        .bullet_spd = 2,
         .sound = &assets.Sounds.shoot2, 
         .bullet = .{.dmg = 10, .sound = &assets.Sounds.bullet_hit, .size = 0.1, .tex = &assets.Texs.bullet_2},
         .effects = comp.Weapon.ShootEffects.init(main.a),

@@ -110,15 +110,17 @@ pub const Weapon = struct {
             counter: usize,
             turret: struct {
                 fire_rate: f32,
+                bullet_spd: f32,
             },
             none,
         };
 
     };
     pub fn clear_all_effects(w: *Weapon) void {
-        var it = w.effects.iterator();
-        while (it.next()) |entry| {
-            entry.value_ptr.on_unload(w, entry.value_ptr);
+        const vs = w.effects.values();
+        var i: isize = @as(isize, @intCast(vs.len)) - 1;
+        while (i >= 0): (i -= 1) {
+            vs[@intCast(i)].on_unload(w, &vs[@intCast(i)]);
         }
         w.effects.clearRetainingCapacity();
     }
@@ -184,7 +186,9 @@ pub const ShipControl = struct {
         // std.log.debug("turn diff: {}, limit {}", .{turn_diff, turn_limit});
         if (turn_diff < 0) {
             control.state.turn = .counter;
+            // std.log.debug("counter", .{});
         } else if (turn_diff > 0){
+            // std.log.debug("clock", .{});
             control.state.turn = .clock;
         }
         // m.turn_spd = m.max_turn_spd_b * m.max_turn_spd_m * turn_dir;
@@ -237,8 +241,9 @@ pub const Ai = struct {
             const me_pos = syss.comp_man.get_comp(Pos, me) orelse return;
             const me_target = syss.comp_man.get_comp(Target, me) orelse return;
             const target_e = find_prior_target(me_target.*, targets) orelse return;
-            const player_pos = syss.comp_man.get_comp(Pos, target_e) orelse return;
-            control.turn_to_pos(me_pos.*, player_pos.pos);
+            // std.log.debug("target {}", .{target_e});
+            const target_pos = syss.comp_man.get_comp(Pos, target_e) orelse return;
+            control.turn_to_pos(me_pos.*, target_pos.pos);
 
             control.state.shoot = true;
             control.state.forward = true;

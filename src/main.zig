@@ -13,6 +13,7 @@ const Buff = comp.BuffHolder.Buff;
 const esc = @import("esc_engine.zig");
 const system = @import("system.zig");
 const comp = @import("componet.zig");
+const enemy = @import("enemy.zig");
 const Entity = esc.Entity;
 const syss = &system.syss;
 
@@ -235,9 +236,7 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    const first_item_id = invent.append_item(inventory.Item.machine_gun());
-    // invent.append_item(inventory.Item.basic_gun());
-    // invent.append_item(inventory.Item.triple_shot());
+    const first_item_id = invent.append_item(inventory.Item.basic_gun());
     std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
 
 
@@ -275,12 +274,9 @@ pub fn main() !void {
             // if (rl.IsKeyPressed(rl.KEY_J)) {
             //     _ = spawn_asteriod();
             // }
-            // if (rl.IsKeyPressed(rl.KEY_K)) {
-            //     if (m.randGen.next() % 2 == 0)
-            //         _ = spawn_crasher()
-            //     else
-            //         _ = spawn_hunter();
-            // }
+            if (rl.IsKeyPressed(rl.KEY_K)) {
+                    _ = enemy.spawn_crasher(comp.Pos {.pos = m.rand_pos() });
+            }
 
             syss.update(dt);
             draw_hud();

@@ -1,4 +1,4 @@
-const rl = @cImport(@cInclude("raylib.h"));
+const rl = @cImport(@cInclude("raylib.h"));old
 const std = @import("std");
 const Assets = @import("assets.zig");
 const AnimationPlayer = Assets.AnimationPlayer;

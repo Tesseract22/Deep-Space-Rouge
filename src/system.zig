@@ -53,6 +53,7 @@ pub const Movement = struct {
             vel.rot *= 1 - vel.rot_drag * dt;
             pos.pos += vel.vel * m.splat(dt);
             pos.rot += vel.rot * dt;
+            pos.rot = @mod(pos.rot, 2 * rl.PI);
             // if (e == main.player) {
             //     std.log.debug("player pos {}", .{pos.pos});
             // }
@@ -753,7 +754,7 @@ pub const EnemeySpawner = struct {
             }
             total += n * t[1];
         }
-        self.wave_worth += 30;
+        self.wave_worth += 75;
         self.wave_ct += 1;
         const asteriod_ct = m.randu(0, 5);
         for (0..asteriod_ct) |_| {
