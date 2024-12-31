@@ -102,7 +102,8 @@ pub const Item = struct {
 
 pub const bw = 5;
 pub const bh = 5;
-pub const blk_size = m.srl2sizen(.{ .x = 32 * conf.pixelMul, .y = 32 * conf.pixelMul });
+// pub const blk_size = m.srl2sizen(.{ .x = 32 * conf.pixelMul, .y = 32 * conf.pixelMul });
+pub const blk_size = m.Vec2 {0.2, 0.2};
 const Items = std.AutoArrayHashMap(usize, Item);
 
 inventory: [bh][bw]?usize = [_][bw]?usize{[_]?usize{null} ** bw} ** bh,

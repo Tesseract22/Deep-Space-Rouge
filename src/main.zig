@@ -279,17 +279,23 @@ pub fn main() !void {
             if (rl.IsKeyPressed(rl.KEY_K)) {
                     _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
             }
-            if (rl.IsKeyPressed(rl.KEY_UP)) {
-                camera_pos[1] += 0.5 * dt;
-            }
-            if (rl.IsKeyPressed(rl.KEY_DOWN)) {
+            if (rl.IsKeyDown(rl.KEY_UP)) {
                 camera_pos[1] -= 0.5 * dt;
             }
-            if (rl.IsKeyPressed(rl.KEY_RIGHT)) {
+            if (rl.IsKeyDown(rl.KEY_DOWN)) {
+                camera_pos[1] += 0.5 * dt;
+            }
+            if (rl.IsKeyDown(rl.KEY_RIGHT)) {
                 camera_pos[0] += 0.5 * dt;
             }
-            if (rl.IsKeyPressed(rl.KEY_LEFT)) {
+            if (rl.IsKeyDown(rl.KEY_LEFT)) {
                 camera_pos[0] -= 0.5 * dt;
+            }
+            if (rl.IsKeyDown(rl.KEY_PAGE_UP)) {
+                camera_zoom += 0.1 * dt;
+            }
+            if (rl.IsKeyDown(rl.KEY_PAGE_DOWN)) {
+                camera_zoom -= 0.1 * dt;
             }
 
             syss.update(dt);

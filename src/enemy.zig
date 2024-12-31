@@ -108,7 +108,7 @@ pub fn spawn_carrier(pos: comp.Pos) Entity {
     });
     syss.add_comp(e, comp.View { 
         .tex = &Assets.Texs.carrier, 
-        // .size = m.splat(size*2)
+        .size = size
     });
     syss.add_comp(e, comp.ShipControl {
         .thurst = 5,

@@ -88,6 +88,20 @@ pub const View = struct {
             //     }
             // }
             // std.log.debug("entity: {} {} {}", .{e, pos.pos, view.radius});
+            const border_v = m.coordn2srl(m.Vec2 {-1 * conf.screenRatio, -1} - main.camera_pos);
+            const border_size = m.sizen2srl(.{2 * conf.screenRatio, 2});
+            const border = rl.Rectangle {.x = border_v.x, .y = border_v.y, .width = border_size.x, .height = border_size.y };
+            rl.DrawRectangleLinesEx(border, 10, rl.WHITE);
+            const round_about_size = m.sizen2srl(m.Vec2 {2 * conf.screenRatio, 2} * m.splat(conf.round_about_extra_space));
+            const round_about_v = m.coordn2srl(m.Vec2 {-1 * conf.screenRatio, -1} * m.splat(conf.round_about_extra_space) - main.camera_pos);
+            const round_about = rl.Rectangle {
+                .x = round_about_v.x, 
+                .y = round_about_v.y, 
+                .width = round_about_size.x, 
+                .height = round_about_size.y,
+            };
+            rl.DrawRectangleLinesEx(round_about, 10, rl.RED);
+
         }
         _ = self;
         _ = dt;
@@ -184,7 +198,7 @@ pub const ShipControl = struct {
                 if (control.thurst_anim) |*anim| {
                     const thurst_pos = pos.pos - m.v2rot(m.up, pos.rot) * m.splat(0.175);
                     const tex = anim.play(dt) orelse unreachable;
-                    utils.DrawTexture(tex.*, thurst_pos, null, pos.rot);
+                    utils.DrawTexture(tex.*, thurst_pos - main.camera_pos, null, pos.rot);
                 }
             } else if (state.brake) {
                 vel.vel *= m.splat(1 - control.brake_rate * dt);

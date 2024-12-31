@@ -1,6 +1,7 @@
 const rl = @cImport(@cInclude("raylib.h"));
 const conf = @import("config.zig");
 const std = @import("std");
+const main = @import("main.zig");
 pub const Vec2 = @Vector(2, f32);
 pub const Vec2i = @Vector(2, c_int);
 
@@ -8,11 +9,7 @@ pub const Vec2i = @Vector(2, c_int);
 pub const screenSizef = Vec2{ conf.screenhf, conf.screenhf };
 pub const up = Vec2{ 0, -1 };
 
-fn roundAbout(pos: Vec2) Vec2 {
-    const screen_rang = Vec2{ 2 * conf.screenwf / conf.screenhf, 2 };
-    const half = screen_rang / splat(2);
-    return @mod(pos + half, screen_rang) - half;
-}
+
 
 // const DefaultBullet = struct {
 
@@ -21,19 +18,19 @@ pub fn splat(i: f32) Vec2 {
     return @splat(i);
 }
 pub fn coordn2srl(v: Vec2) rl.Vector2 {
-    return v2rl((v + splat(1.0)) * splat(0.5) * screenSizef + Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 });
+    return v2rl((v + splat(1.0 * main.camera_zoom)) / splat(2 * main.camera_zoom) * screenSizef + Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 });
 }
 pub fn srl2sizen(v: rl.Vector2) Vec2 {
-    return rl2v2(v) / screenSizef * splat(2);
+    return rl2v2(v) / screenSizef * splat(2 * main.camera_zoom);
 }
 pub fn srl2coord(v: rl.Vector2) Vec2 {
-    return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2) / screenSizef - splat(1.0);
+    return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2 * main.camera_zoom) / screenSizef - splat(1.0 * main.camera_zoom);
 }
 pub fn size2s(s: f32) f32 {
-    return s * screenSizef[0] * 0.5;
+    return s * screenSizef[0] * 0.5 / main.camera_zoom;
 }
 pub fn sizen2srl(v: Vec2) rl.Vector2 {
-    return v2rl(v * screenSizef * splat(0.5));
+    return v2rl(v * screenSizef / splat(2 * main.camera_zoom));
 }
 pub inline fn v2rl(v: Vec2) rl.Vector2 {
     return .{ .x = v[0], .y = v[1] };
@@ -74,7 +71,7 @@ pub inline fn deg2rad(d: f32) f32 {
 }
 
 pub fn round_about(pos: Vec2) Vec2 {
-    const screen_rang = Vec2{ 2 * conf.screenwf / conf.screenhf, 2 };
+    const screen_rang = Vec2{ 2 * conf.screenwf / conf.screenhf, 2 } * splat(conf.round_about_extra_space);
     const half = screen_rang / splat(2);
     return @mod(pos + half, screen_rang) - half;
 }
@@ -116,6 +113,6 @@ pub fn rand_rot() f32 {
 }
 
 pub fn measure_tex(tex: rl.Texture) Vec2 {
-    const rlv = rl.Vector2 {.x = @floatFromInt(tex.width), .y = @floatFromInt(tex.height)};
-    return srl2sizen(rlv) * splat(conf.pixelMul);
+    const v = Vec2 {@floatFromInt(tex.width), @floatFromInt(tex.height)};
+    return v / screenSizef * splat(2) * splat(conf.pixelMul);
 }
