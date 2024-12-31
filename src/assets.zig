@@ -2,6 +2,7 @@ const rl = @cImport(@cInclude("raylib.h"));
 const std = @import("std");
 
 const Assets = @This();
+const m = @import("math.zig");
 pub const assetsDir = "assets/";
 pub const Anims = struct {
     pub var asteroid:       Animation = undefined;
@@ -11,7 +12,7 @@ pub const Anims = struct {
     pub var bullet_hit:     Animation = undefined;
     pub fn load() void {
     
-        const info = @typeInfo(Anims).Struct;
+        const info = @typeInfo(Anims).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -26,7 +27,7 @@ pub const Anims = struct {
         }
     }
     pub fn unload() void {
-        const info = @typeInfo(Anims).Struct;
+        const info = @typeInfo(Anims).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -41,6 +42,9 @@ pub const Texs = struct {
     pub var space:          rl.Texture2D = undefined;
     
     pub var fighter:        rl.Texture2D = undefined;
+    pub var carrier:        rl.Texture2D = undefined;
+    pub var turret:         rl.Texture2D = undefined;
+    pub var turret_item:    rl.Texture2D = undefined;
     pub var bullet:         rl.Texture2D = undefined;
     pub var bullet_2:       rl.Texture2D = undefined;
     pub var asteroid:       rl.Texture2D = undefined;
@@ -57,12 +61,13 @@ pub const Texs = struct {
     pub var block:          rl.Texture2D = undefined;
     pub var water:          rl.Texture2D = undefined;
     pub var weapon_1:       rl.Texture2D = undefined;
-    pub var machine_gun:   rl.Texture2D = undefined;
+    pub var machine_gun:    rl.Texture2D = undefined;
+    pub var missile:        rl.Texture2D = undefined;
     pub var weight:         rl.Texture2D = undefined;
     pub var triple_shots:   rl.Texture2D = undefined;
     pub var energy_bullet:  rl.Texture2D = undefined;
     pub fn load() void {
-        const info = @typeInfo(Texs).Struct;
+        const info = @typeInfo(Texs).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -77,7 +82,7 @@ pub const Texs = struct {
         }
     }
     pub fn unload() void {
-        const info = @typeInfo(Texs).Struct;
+        const info = @typeInfo(Texs).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name)) continue;
             // std.log.debug("{any}", .{@field(Texs, d.name)});
@@ -93,12 +98,15 @@ pub const Sounds = struct {
     pub var gem_pickup_2:   rl.Sound = undefined;
     pub var gem_pickup_3:   rl.Sound = undefined;
     pub var shoot:          rl.Sound = undefined;
+    pub var shoot2:         rl.Sound = undefined;
     pub var bullet_hit:     rl.Sound = undefined;
     pub var level_up:       rl.Sound = undefined;
     pub var collide:        rl.Sound = undefined;
     pub var explode_1:      rl.Sound = undefined;
+    pub var hurt:           rl.Sound = undefined;
+    pub var select:         rl.Sound = undefined;
     pub fn load() void {
-        const info = @typeInfo(Sounds).Struct;
+        const info = @typeInfo(Sounds).@"struct";
         rl.InitAudioDevice();
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name) or std.mem.eql(u8, "dir", d.name)) continue;
@@ -114,7 +122,7 @@ pub const Sounds = struct {
         }
     }
     pub fn unload() void {
-        const info = @typeInfo(Sounds).Struct;
+        const info = @typeInfo(Sounds).@"struct";
         inline for (info.decls) |d| {
             if (comptime std.mem.eql(u8, "load", d.name) or std.mem.eql(u8, "unload", d.name) or std.mem.eql(u8, "dir", d.name)) continue;
             rl.UnloadSound(@field(Sounds, d.name) );
@@ -135,19 +143,6 @@ pub fn unload() void {
     Sounds.unload();
 }
 
-
-	// pub fn init() Assets {
-	// 	const info = @typeInfo(Assets).Struct;
-	// 	var assets: Assets = undefined;
-	// 	inline for (info.fields) |f| {
-	// 		if (f.type == Animation) {
-	// 			const path = f.name[0..];
-	// 		} else if (f.type == rl.Texture2D) {
-
-	// 		} else unreachable;
-	// 	}
-	// 	return assets;
-	// }
 
 
 pub const Frames = std.ArrayList(rl.Texture2D);
@@ -180,16 +175,21 @@ pub const AnimationPlayer = struct {
 	spd: f32 = 10,
 	curr_frame: usize = 0,
 	et: f32 = 0,
-	anim: *Animation,
+	size: ?m.Vec2 = null,
 	loop: bool = false,
-	valid: bool = false,
-	size: ?@Vector(2, f32) = null,
-	pub fn play(self: *AnimationPlayer, t: f32) *rl.Texture2D {
+        should_kill: bool = true,
+
+	anim: *Animation,
+	pub fn play(self: *AnimationPlayer, t: f32) ?*rl.Texture2D {
 		self.et += t;
 		if (self.et >= 1/self.spd) {
-			self.curr_frame = (self.curr_frame + 1) % self.anim.frames.items.len;
+			self.curr_frame = self.curr_frame + 1;
 			self.et = 0;
 		}
+                if (self.curr_frame >= self.anim.frames.items.len) {
+                    if (self.loop) self.curr_frame = 0
+                    else return null;
+                } 
 		return &self.anim.frames.items[self.curr_frame];
 	}
 	pub fn isLast(self: AnimationPlayer) bool {
