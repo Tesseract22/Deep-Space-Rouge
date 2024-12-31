@@ -540,15 +540,27 @@ pub const Bullet = struct {
                 const other = coll.e;
                 const health = syss.comp_man.get_comp(comp.Health, other) orelse continue;
                 const other_team = syss.comp_man.get_comp(comp.Target, other) orelse continue;
+                const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
 
                 if (team.team == other_team.team) continue;
-                health.hp -= bullet.dmg;
+                if (bullet.area != 0) {
+                    const explode = syss.new_entity();
+                    syss.add_comp(explode, pos.*);
+                    syss.add_comp(explode, comp.Bullet {.area = 0, .size = bullet.area, .dmg = bullet.dmg, .tex = null});
+                    syss.add_comp(explode, comp.Size.simple(bullet.area));
+                    syss.add_comp(explode, comp.CollisionSet1{});
+                    syss.add_comp(explode, team.*);
+                } else {
+                    health.hp -= bullet.dmg;
+                }
 
-                const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
+                
                 const anim_e = syss.new_entity();
-
                 syss.add_comp(anim_e, pos.*);
-                syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit});
+                if (bullet.area == 0) 
+                    syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit})
+                else 
+                    syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.explode_blue, .size = m.splat(bullet.area/2)});
                 if (bullet.sound) |sound|
                     rl.PlaySound(sound.*);
                 if (bullet.penetrate == 0) syss.add_comp(e, comp.Dead {})

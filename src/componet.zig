@@ -84,7 +84,7 @@ pub const Weapon = struct {
         const bullet = syss.new_entity();
         syss.add_comp(bullet, pos);
         syss.add_comp(bullet, vel);
-        syss.add_comp(bullet, View {.tex = weapon.bullet.tex, .size = m.splat(weapon.bullet.size)});
+        if (weapon.bullet.tex) |tex| syss.add_comp(bullet, View {.tex = tex, .size = m.splat(weapon.bullet.size)});
         syss.add_comp(bullet, Size.simple(weapon.bullet.size));
         syss.add_comp(bullet, weapon.bullet);
         syss.add_comp(bullet, CollisionSet1 {});
@@ -138,10 +138,11 @@ pub const WeaponHolder = struct {
 };
 pub const Bullet = struct {
     size: f32 = 0.02,
-    tex: *rl.Texture,
+    tex: ?*rl.Texture,
     dmg: f32 = 10,
     sound: ?*rl.Sound = null,
     penetrate: u8 = 0,
+    area: f32 = 0,
     pub const OnhitFn = fn (*Weapon, *Bullet, esc.Entity, usize) void;
     pub const Onhits = std.ArrayList(*const OnhitFn);
 

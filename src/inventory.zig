@@ -44,6 +44,7 @@ pub const Item = struct {
         .{ Item.basic_gun, 1 },
         .{ Item.turret, 1},
         .{ Item.machine_gun, 1 },
+        .{ Item.torpedo, 1 },
     };
 
     const ItemType = union(enum) {
@@ -77,6 +78,15 @@ pub const Item = struct {
             .name = "machine gun", 
             .shape = .{ .{ 0, 0 }, .{ 1, 0 }, .{ 1, 1 }, null, null },
             .type = .{.weapon = weapon.machine_gun()}};
+
+    }
+    pub fn torpedo() Item {
+        return .{
+            .id = new_id(), 
+            .tex = &assets.Texs.machine_gun, 
+            .name = "torpedo", 
+            .shape = .{ .{ 0, 0 }, .{ 1, 0 }, null, null, null },
+            .type = .{.weapon = weapon.torpedo()}};
 
     }
     pub fn turret() Item {
