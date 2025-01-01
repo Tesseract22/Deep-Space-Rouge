@@ -21,9 +21,11 @@ const utils = @import("utils.zig");
 const assets = @import("assets.zig");
 const main = @import("main.zig");
 const enemy = @import("enemy.zig");
+const particle = @import("particle.zig");
 
 pub const Manager = esc.SystemManager(&comp.comp_types, &comp.event_types);
 pub var syss: Manager = undefined;
+//pub var pixel_syss: 
 
 // generic function for creating an esc.System interface from an System Implementation
 pub fn get(self: anytype, a: Allocator) System {
@@ -199,7 +201,9 @@ pub const ShipControl = struct {
                     const thurst_pos = pos.pos - m.v2rot(m.up, pos.rot) * m.splat(0.175);
                     const tex = anim.play(dt) orelse unreachable;
                     utils.DrawTexture(tex.*, thurst_pos - main.camera.pos, null, pos.rot);
+                    particle.emit(thurst_pos, 0.1, 3, rl.Color {.r = 57, .g = 193, .b = 230, .a = 255});
                 }
+                
             } else if (state.brake) {
                 vel.vel *= m.splat(1 - control.brake_rate * dt);
             }
@@ -571,10 +575,13 @@ pub const Bullet = struct {
                 
                 const anim_e = syss.new_entity();
                 syss.add_comp(anim_e, pos.*);
-                if (bullet.area == 0) 
-                    syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit})
-                else 
-                    syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.explode_blue, .size = m.splat(bullet.area/2)});
+                for (0..10) |_| {
+                    particle.emit(pos.pos, 0.2, 2, rl.RED);
+                }
+                // if (bullet.area == 0) 
+                //     syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit})
+                // else 
+                //     syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.explode_blue, .size = m.splat(bullet.area/2)});
                 if (bullet.sound) |sound|
                     rl.PlaySound(sound.*);
                 if (bullet.penetrate == 0) syss.add_comp(e, comp.Dead {})

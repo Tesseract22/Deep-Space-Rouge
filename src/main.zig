@@ -14,6 +14,7 @@ const esc = @import("esc_engine.zig");
 const system = @import("system.zig");
 const comp = @import("componet.zig");
 const enemy = @import("enemy.zig");
+const particle = @import("particle.zig");
 const Entity = esc.Entity;
 const syss = &system.syss;
 
@@ -274,12 +275,12 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    const first_item_id = invent.append_item(inventory.Item.torpedo());
+    const first_item_id = invent.append_item(inventory.Item.machine_gun());
     std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
 
 
     // _ = invent.append_item(inventory.Item.turret());
-    // _ = invent.append_item(inventory.Item.triple_shots());
+    _ = invent.append_item(inventory.Item.triple_shots());
 
     invent.cal_item();
 
@@ -303,6 +304,9 @@ pub fn main() !void {
             if (rl.IsKeyPressed(rl.KEY_I)) {
                 pause = !pause;
             }
+            // if (rl.IsKeyPressed(rl.KEY_P)) {
+            //     particle.emit_random();
+            // }
             if (pause) {
                 dt = 0;
             }
@@ -317,6 +321,7 @@ pub fn main() !void {
                 _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
             }
             syss.update(dt);
+            particle.update(dt);
             draw_hud();
             if (pause) {
                 invent.draw();
@@ -354,4 +359,10 @@ pub fn main() !void {
         }
         rl.EndDrawing();
     }
+}
+
+
+
+test "esc" {
+
 }

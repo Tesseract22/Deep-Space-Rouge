@@ -123,7 +123,7 @@ pub fn spawn_carrier(pos: comp.Pos) Entity {
     syss.add_comp(e, comp.DeadAnimation { .dead = &Assets.Anims.explode_blue});
     var weapon_comp = weapon.machine_gun();
     
-    weapon_comp.append_effect(0, &shoot_effect.turret);
+    weapon_comp.append_effect(0, shoot_effect.turret());
     syss.add_comp(e, weapon_comp);
 
     syss.add_comp(e, comp.Ai {.state = .{ .hunter = .{}}});

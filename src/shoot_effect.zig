@@ -52,8 +52,8 @@ const turret_impl = struct {
                 // turret_weapon.effects = comp.Weapon.ShootEffects.init(main.a);
                 for (weapon.effects.keys(), weapon.effects.values(), 0..weapon.effects.count()) |id, e2, i| {
                     if (i == idx) break;
-                    var e_copy = e2;
-                    turret_weapon.append_effect(id, &e_copy);
+                    const e_copy = e2;
+                    turret_weapon.append_effect(id, e_copy);
                 }
                 syss.add_comp(bullet, turret_weapon);
             }
@@ -75,7 +75,14 @@ const turret_impl = struct {
 
     };
 
-pub var turret = comp.Weapon.ShootEffect {.shoot_fn = turret_impl.shoot, .data = .{.turret = undefined}, .on_load = turret_impl.load, .on_unload = turret_impl.un_load};
+pub fn turret() comp.Weapon.ShootEffect {
+    return .{
+        .shoot_fn = turret_impl.shoot, 
+        .data = .{.turret = undefined}, 
+        .on_load = turret_impl.load, 
+        .on_unload = turret_impl.un_load
+    };
+}
 
 const triple_shot_impl = struct {
     pub fn shoot(
@@ -106,11 +113,41 @@ const triple_shot_impl = struct {
         w.fire_rate *= 2;
     }
 };
-pub var triple_shot = ShootEffect {
-    .data = undefined,
-    .shoot_fn = triple_shot_impl.shoot,
-    .on_load = triple_shot_impl.load,
-    .on_unload = triple_shot_impl.un_load,
+pub fn triple_shot() ShootEffect {
+    return .{
+        .data = undefined,
+        .shoot_fn = triple_shot_impl.shoot,
+        .on_load = triple_shot_impl.load,
+        .on_unload = triple_shot_impl.un_load,
+    };
+}
+
+const water_impl = struct {
+    pub fn shoot(
+        weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
+        vel: comp.Vel, pos: comp.Pos, team: comp.Target,
+        idx: isize) void 
+    {
+        _ = effect;
+        const prev = weapon.get_effect(idx - 1) orelse return;
+        prev.shoot_fn(weapon, prev, vel, pos, team, idx - 1);
+    }
+    pub fn load(w: *Weapon, effect: *ShootEffect) void {
+        _ = effect;
+        w.fire_rate *= 1.5;
+    }
+    pub fn un_load(w: *Weapon, effect: *ShootEffect) void {
+        _ = effect;
+        w.fire_rate /= 1.5;
+    }
 };
+pub fn water() ShootEffect {
+    return .{
+        .data = undefined,
+        .shoot_fn = water_impl.shoot,
+        .on_load = water_impl.load,
+        .on_unload = water_impl.un_load,
+    };
+}
 
 

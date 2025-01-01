@@ -67,7 +67,7 @@ pub fn torpedo() Weapon {
         .fire_rate = 2, 
         .bullet_spd = 0.5,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 60, .sound = &assets.Sounds.bullet_hit, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 1},
+        .bullet = .{.dmg = 90, .sound = &assets.Sounds.bullet_hit, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
         .base_effect = .{.data = undefined, .shoot_fn = impl.shoot}

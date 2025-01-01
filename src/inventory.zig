@@ -37,8 +37,8 @@ pub const Item = struct {
     type: ItemType,
 
     const item_weight = [_]std.meta.Tuple(&[_]type{ (*const fn () Item), f32 }){
-        // .{ Item.water, 1 },
-        // .{ Item.weight, 1 },
+        .{ Item.water, 1 },
+        //.{ Item.weight, 1 },
         // .{ Item.energy_bullet, 1 },
         .{ Item.triple_shots, 1 },
         .{ Item.basic_gun, 1 },
@@ -69,7 +69,7 @@ pub const Item = struct {
             .tex = &assets.Texs.triple_shots, 
             .name = "triple shot", 
             .shape = .{ .{ 0, 0 }, .{ 0, 1 }, .{ 1, 1 }, null, null },
-            .type = .{.effect = shoot_effect.triple_shot }};
+            .type = .{.effect = shoot_effect.triple_shot() }};
     }
     pub fn machine_gun() Item {
         return .{
@@ -78,6 +78,15 @@ pub const Item = struct {
             .name = "machine gun", 
             .shape = .{ .{ 0, 0 }, .{ 1, 0 }, .{ 1, 1 }, null, null },
             .type = .{.weapon = weapon.machine_gun()}};
+
+    }
+    pub fn water() Item {
+        return .{
+            .id = new_id(), 
+            .tex = &assets.Texs.water, 
+            .name = "water", 
+            .shape = .{ .{ 0, 0 }, null, null, null, null },
+            .type = .{.effect = shoot_effect.water()}};
 
     }
     pub fn torpedo() Item {
@@ -95,7 +104,7 @@ pub const Item = struct {
             .tex = &assets.Texs.turret_item, 
             .name = "turret", 
             .shape = .{ .{ 0, 0 }, null, null, null, null },
-            .type = .{.effect = shoot_effect.turret }
+            .type = .{.effect = shoot_effect.turret() }
         };
     }
 };
@@ -299,7 +308,7 @@ pub fn cal_item(self: Self) void {
                 while (it2.next()) |entry2| {
                     const n = entry2.value_ptr;
                     switch (n.type) {
-                        .effect => |*effect| {
+                        .effect => |effect| {
                             w.append_effect(n.id, effect);
                         },
                         else => {},

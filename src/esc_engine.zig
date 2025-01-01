@@ -95,42 +95,52 @@ pub fn ComponentManager(comptime comp_types: []const type) type {
 }
 pub fn ComponentArray(comptime T: type) type {
     return struct {
-        const MAX_COMP = 512;
+        const INIT_CAP = 256;
         const Self = @This();
-        comps: std.BoundedArray(T, MAX_COMP),
+        // in the implementation of systems, we have this pattern where we `get` a *component, and modify this component directly
+        // However, simultaneously we are also appending things into the ComponentArray
+        // With a data structure that is not pointer-statble (e.g. ArrayList), the previously `get` pointer could become invalid as the underlying list realloc
+        // 
+        // Previously we are using BoundedArray, which is statically allocated, therefore pointer-stablee
+        // To support indefinite amount of components, we use a SegmentedList, also pointer-stable
+        // However, the items are no longer continous
+        // TODO
+        // tests the performance of this
+        comps: std.SegmentedList(T, 256),
         entity_to_comp: std.AutoHashMap(Entity, usize),
         comp_to_entity: std.AutoHashMap(usize, Entity),
 
 
         pub fn init(a: Allocator) @This() {
             return .{
-                .comps = std.BoundedArray(T, MAX_COMP).init(0) catch unreachable,
+                .comps = std.SegmentedList(T, 256){},
                 .entity_to_comp = std.AutoHashMap(Entity, usize).init(a),
                 .comp_to_entity = std.AutoHashMap(usize, Entity).init(a),
             };
         }
         pub fn deinit(self: *Self) void {
             self.clear();
+            self.comps.deinit(self.entity_to_comp.allocator);
             self.entity_to_comp.deinit();
             self.comp_to_entity.deinit();
         }
         pub fn clear(self: *Self) void {
             if (@hasDecl(T, "deinit")) {
-                for (self.comps.slice()) |*comp| {
+                var it = self.comps.iterator(0);
+                while (it.next()) |comp| {
                     comp.deinit();
                 }
             }
-            self.comps.clear();
+            self.comps.clearRetainingCapacity();
             self.entity_to_comp.clearRetainingCapacity();
             self.comp_to_entity.clearRetainingCapacity();
         }
         pub fn add(self: *Self, e: Entity, comp: T) void {
-            assert(self.comps.len != self.comps.capacity());
             const gop = self.entity_to_comp.getOrPut(e) catch unreachable;
             if (!gop.found_existing) {
                 gop.value_ptr.* = self.comps.len;
                 self.comp_to_entity.putNoClobber(self.comps.len, e) catch unreachable;
-                self.comps.append(comp) catch unreachable;
+                self.comps.append(self.comp_to_entity.allocator, comp) catch unreachable;
             }
 
         }
@@ -144,9 +154,11 @@ pub fn ComponentArray(comptime T: type) type {
 
             // swap
             if (@hasDecl(T, "deinit")) {
-                self.comps.slice()[comp_idx].deinit();
+                self.comps.at(comp_idx).deinit();
             }
-            _ = self.comps.swapRemove(comp_idx);
+            //_ = self.comps.swapRemove(comp_idx);
+            const last = self.comps.pop() orelse unreachable;
+            self.comps.uncheckedAt(comp_idx).* = last;
             if (comp_idx != last_idx) {
                 self.entity_to_comp.put(last_entity, comp_idx) catch unreachable;
                 self.comp_to_entity.put(comp_idx, last_entity) catch unreachable;
@@ -154,7 +166,7 @@ pub fn ComponentArray(comptime T: type) type {
         }
         pub fn get(self: *Self, e: Entity) ?*T {
             const idx = self.entity_to_comp.get(e) orelse return null;
-            return &self.comps.slice()[idx];
+            return self.comps.at(idx);
         }
     };
 }

@@ -70,9 +70,11 @@ pub const Weapon = struct {
         if (idx == -1) return &weapon.base_effect;
         return &weapon.effects.values()[@intCast(idx)];
     }
-    pub fn append_effect(w: *Weapon, id: usize, effect: *ShootEffect) void {
-        effect.on_load(w, effect);
-        w.effects.put(id, effect.*) catch unreachable;
+    pub fn append_effect(w: *Weapon, id: usize, effect: ShootEffect) void {
+        w.effects.put(id, effect) catch unreachable;
+        const eff = w.effects.getPtr(id) orelse unreachable;
+        eff.on_load(w, eff);
+
     }
     pub fn basic_base_shoot(
         weapon: *Weapon, effect: *ShootEffect, 
