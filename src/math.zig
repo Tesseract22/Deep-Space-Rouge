@@ -14,24 +14,52 @@ pub const up = Vec2{ 0, -1 };
 // const DefaultBullet = struct {
 
 // };
+pub const Camera = struct {
+    pos: Vec2 = .{0, 0},
+    vel: Vec2 = .{0, 0},
+    drag: f32 = 1,
+    zoom: f32 = 1,
+};
 pub fn splat(i: f32) Vec2 {
     return @splat(i);
 }
 pub fn coordn2srl(v: Vec2) rl.Vector2 {
-    return v2rl((v + splat(1.0 * main.camera_zoom)) / splat(2 * main.camera_zoom) * screenSizef + Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 });
+    return v2rl((v + splat(1.0 * main.camera.zoom)) / splat(2 * main.camera.zoom) * screenSizef + Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 });
 }
 pub fn srl2sizen(v: rl.Vector2) Vec2 {
-    return rl2v2(v) / screenSizef * splat(2 * main.camera_zoom);
+    return rl2v2(v) / screenSizef * splat(2 * main.camera.zoom);
 }
 pub fn srl2coord(v: rl.Vector2) Vec2 {
-    return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2 * main.camera_zoom) / screenSizef - splat(1.0 * main.camera_zoom);
+    return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2 * main.camera.zoom) / screenSizef - splat(1.0 * main.camera.zoom);
 }
 pub fn size2s(s: f32) f32 {
-    return s * screenSizef[0] * 0.5 / main.camera_zoom;
+    return s * screenSizef[0] * 0.5 / main.camera.zoom;
 }
 pub fn sizen2srl(v: Vec2) rl.Vector2 {
-    return v2rl(v * screenSizef / splat(2 * main.camera_zoom));
+    return v2rl(v * screenSizef / splat(2 * main.camera.zoom));
 }
+// --------------------------------------------- static version ----------------------------------------
+
+pub fn coordn2srl_static(v: Vec2) rl.Vector2 {
+    return v2rl((v + splat(1.0)) / splat(2) * screenSizef + Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 });
+}
+pub fn srl2sizen_static(v: rl.Vector2) Vec2 {
+    return rl2v2(v) / screenSizef * splat(2);
+}
+pub fn srl2coord_static(v: rl.Vector2) Vec2 {
+    return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2) / screenSizef - splat(1.0);
+}
+pub fn size2s_static(s: f32) f32 {
+    return s * screenSizef[0] * 0.5;
+}
+pub fn sizen2srl_static(v: Vec2) rl.Vector2 {
+    return v2rl(v * screenSizef / splat(2));
+}
+
+
+
+
+
 pub inline fn v2rl(v: Vec2) rl.Vector2 {
     return .{ .x = v[0], .y = v[1] };
 }

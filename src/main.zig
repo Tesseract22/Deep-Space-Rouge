@@ -28,6 +28,38 @@ pub fn Annouce(s: [:0]const u8, duration: f32) void {
     annouce_t = duration;
 }
 
+pub fn debug_camera(cam: *m.Camera) void {
+    if (rl.IsKeyDown(rl.KEY_UP)) {
+        cam.vel[1] -= 0.5 * dt;
+    }
+    if (rl.IsKeyDown(rl.KEY_DOWN)) {
+        cam.vel[1] += 0.5 * dt;
+    }
+    if (rl.IsKeyDown(rl.KEY_RIGHT)) {
+        cam.vel[0] += 0.5 * dt;
+    }
+    if (rl.IsKeyDown(rl.KEY_LEFT)) {
+        cam.vel[0] -= 0.5 * dt;
+    }
+    if (rl.IsKeyDown(rl.KEY_PAGE_UP)) {
+        cam.zoom += 0.1 * dt;
+    }
+    if (rl.IsKeyDown(rl.KEY_PAGE_DOWN)) {
+        cam.zoom -= 0.1 * dt;
+    }
+    if (rl.IsKeyPressed(rl.KEY_L)) {
+        cam.vel += m.Vec2 {m.randf(-0.5, 0.5), m.randf(-0.5, 0.5)};
+    }
+
+    
+}
+fn camera_update(cam: *m.Camera) void {
+    cam.pos += cam.vel * m.splat(dt);
+    cam.vel += -cam.pos * m.splat(dt * 100);
+    cam.vel *= m.splat(1 - cam.drag * dt);
+
+}
+
 
 
 
@@ -123,8 +155,11 @@ pub fn spawn_asteriod() Entity {
 
 }
 pub var player: Entity = undefined;
-pub var camera_pos: m.Vec2 = .{0, 0};
-pub var camera_zoom: f32 = 1;
+// pub var camera_pos: m.Vec2 = .{0, 0};
+// pub var cam.vel: m.Vec2 = .{0, 0};
+// pub var camera_drag: f32 = 1;
+// pub var camera_zoom: f32 = 1;
+pub var camera: m.Camera = .{};
 pub fn draw_hud() void {
     // const healthbar_pos = Vec
     rl.DrawFPS(20, 20);
@@ -141,8 +176,8 @@ pub fn draw_hud() void {
         const perc = (hp_comp.hp / hp_comp.max);
 
         // rl.DrawRectangleV(m.coordn2srl(hp_pos), m.sizen2srl(.{0.2, 0.2}), rl.RED);
-        utils.DrawRectCentered(hp_pos, .{ len, hei }, hp_bg_color);
-        utils.DrawRectCentered(hp_pos - Vec2{ len * (1 - perc) / 2, 0 }, .{ len * perc, hei }, hp_color);
+        utils.DrawRectCentered_static(hp_pos, .{ len, hei }, hp_bg_color);
+        utils.DrawRectCentered_static(hp_pos - Vec2{ len * (1 - perc) / 2, 0 }, .{ len * perc, hei }, hp_color);
     }
 
     const gem_color = rl.GREEN;
@@ -153,8 +188,8 @@ pub fn draw_hud() void {
         const gem_comp = syss.get_comp(player, comp.Exp) orelse &default;
 
         const perc = (@as(f32, @floatFromInt(gem_comp.curr_exp)) / @as(f32, @floatFromInt(gem_comp.next_lvl)));
-        utils.DrawRectCentered(gem_pos, .{ len, hei }, gem_bg_color);
-        utils.DrawRectCentered(gem_pos - Vec2{ len * (1 - perc) / 2, 0 }, .{ len * perc, hei }, gem_color);
+        utils.DrawRectCentered_static(gem_pos, .{ len, hei }, gem_bg_color);
+        utils.DrawRectCentered_static(gem_pos - Vec2{ len * (1 - perc) / 2, 0 }, .{ len * perc, hei }, gem_color);
     }
 
     // const mana_color = rl.BLUE;
@@ -250,7 +285,7 @@ pub fn main() !void {
 
     m.randGen = std.Random.DefaultPrng.init(@intCast(std.time.microTimestamp()));
 
-    
+
     Annouce("GAME START!", 5);
     while (!rl.WindowShouldClose()) {
         var aa = std.heap.ArenaAllocator.init(a);
@@ -271,33 +306,16 @@ pub fn main() !void {
             if (pause) {
                 dt = 0;
             }
+            debug_camera(&camera);
+            camera_update(&camera);
             const space_tex = &Assets.Texs.space;
             rl.DrawTexturePro(space_tex.*, .{ .x = 0, .y = 0, .width = @floatFromInt(space_tex.width), .height = @floatFromInt(space_tex.height) }, .{ .x = 0, .y = 0, .width = conf.screenw, .height = conf.screenh }, .{ .x = 0, .y = 0 }, 0, .{ .r = 0x9f, .g = 0x9f, .b = 0x9f, .a = 0xff });
             // if (rl.IsKeyPressed(rl.KEY_J)) {
             //     _ = spawn_asteriod();
             // }
             if (rl.IsKeyPressed(rl.KEY_K)) {
-                    _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
+                _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
             }
-            if (rl.IsKeyDown(rl.KEY_UP)) {
-                camera_pos[1] -= 0.5 * dt;
-            }
-            if (rl.IsKeyDown(rl.KEY_DOWN)) {
-                camera_pos[1] += 0.5 * dt;
-            }
-            if (rl.IsKeyDown(rl.KEY_RIGHT)) {
-                camera_pos[0] += 0.5 * dt;
-            }
-            if (rl.IsKeyDown(rl.KEY_LEFT)) {
-                camera_pos[0] -= 0.5 * dt;
-            }
-            if (rl.IsKeyDown(rl.KEY_PAGE_UP)) {
-                camera_zoom += 0.1 * dt;
-            }
-            if (rl.IsKeyDown(rl.KEY_PAGE_DOWN)) {
-                camera_zoom -= 0.1 * dt;
-            }
-
             syss.update(dt);
             draw_hud();
             if (pause) {

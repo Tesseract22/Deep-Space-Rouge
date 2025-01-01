@@ -63,6 +63,7 @@ pub const Texs = struct {
     pub var weapon_1:       rl.Texture2D = undefined;
     pub var machine_gun:    rl.Texture2D = undefined;
     pub var missile:        rl.Texture2D = undefined;
+    pub var torpedo:        rl.Texture2D = undefined;
     pub var weight:         rl.Texture2D = undefined;
     pub var triple_shots:   rl.Texture2D = undefined;
     pub var energy_bullet:  rl.Texture2D = undefined;

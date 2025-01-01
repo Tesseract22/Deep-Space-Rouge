@@ -83,7 +83,7 @@ pub const Item = struct {
     pub fn torpedo() Item {
         return .{
             .id = new_id(), 
-            .tex = &assets.Texs.machine_gun, 
+            .tex = &assets.Texs.torpedo, 
             .name = "torpedo", 
             .shape = .{ .{ 0, 0 }, .{ 1, 0 }, null, null, null },
             .type = .{.weapon = weapon.torpedo()}};
@@ -131,7 +131,7 @@ pub fn append_item(self: *Self, item: Item) usize {
 
 fn DrawItem(item: Item, pos: m.Vec2) void {
     //  q
-    const spos = m.coordn2srl(pos - blk_size / m.splat(2));
+    const spos = m.coordn2srl_static(pos - blk_size / m.splat(2));
     rl.DrawTextureEx(item.tex.*, spos, 0, conf.pixelMul, rl.WHITE);
 }
 fn checkItemBound(bc: @Vector(2, i32)) bool {
@@ -173,7 +173,7 @@ fn drop_item(self: *Self, si: *Item) void {
 pub fn draw(self: *Self) void {
     const blk_tex = &assets.Texs.block;
     // darken the background
-    rl.DrawRectangle(9, 9, conf.screenw, conf.screenh, rl.Color{ .r = 0, .b = 0, .g = 0, .a = 0x7f });
+    rl.DrawRectangle(0, 0, conf.screenw, conf.screenh, rl.Color{ .r = 0, .b = 0, .g = 0, .a = 0x7f });
     // draw the grid
 
     for (0..bw) |x| {
@@ -181,7 +181,7 @@ pub fn draw(self: *Self) void {
         for (0..bh) |y| {
             const yf: f32 = @floatFromInt(y);
             const origin = blk_size * m.Vec2{ xf - (@as(f32, @floatFromInt(bw)) - 1) / 2, yf - (@as(f32, @floatFromInt(bh)) - 1) / 2 };
-            utils.DrawTexture(blk_tex.*, origin, null, 0);
+            utils.DrawTexture_static(blk_tex.*, origin, blk_size, 0);
         }
     }
     // items come on top of grid
@@ -208,15 +208,16 @@ pub fn draw(self: *Self) void {
     while (it.next()) |entry| : (list_ct += 1) {
         const item = entry.value_ptr;
         const ct: f32 = @floatFromInt(list_ct);
-        rl.DrawRectangleV(m.coordn2srl(.{ list_x - 0.01, list_y + ct * list_space }), m.sizen2srl(.{ list_w, list_h }), rl.BEIGE);
-        utils.DrawText(.{ list_x, list_y + ct * list_space }, item.name, 20, rl.WHITE);
+        // utils.DrawRectCentered()inv
+        rl.DrawRectangleV(m.coordn2srl_static(.{ list_x - 0.01, list_y + ct * list_space }), m.sizen2srl_static(.{ list_w, list_h }), rl.BEIGE);
+        utils.DrawText_static(.{ list_x, list_y + ct * list_space }, item.name, 20, rl.WHITE);
     }
 
 
     // draw the selected item
 
     const mouse_sv = rl.GetMousePosition();
-    const mouse_v = m.srl2coord(mouse_sv);
+    const mouse_v = m.srl2coord_static(mouse_sv);
     const mouse_list = @divFloor(mouse_v[1] - list_y, list_space);
     const mouse_list_i: isize = @intFromFloat(mouse_list);
     const bc: @Vector(2, i32) = @intFromFloat(mouse_v / blk_size + m.splat(2.5));
@@ -239,8 +240,8 @@ pub fn draw(self: *Self) void {
     }
 
     if (mouse_v[0] >= list_x and mouse_v[0] < list_x + list_w and mouse_list_i < list_ct and mouse_list_i >= 0) {
-        const pos = m.coordn2srl(.{ list_x - 0.01, list_y + mouse_list * list_space });
-        const size = m.sizen2srl(.{ list_w, list_h });
+        const pos = m.coordn2srl_static(.{ list_x - 0.01, list_y + mouse_list * list_space });
+        const size = m.sizen2srl_static(.{ list_w, list_h });
         rl.DrawRectangleLinesEx(.{ .x = pos.x, .y = pos.y, .width = size.x, .height = size.y }, 1, rl.WHITE);
         if (rl.IsMouseButtonPressed(rl.MOUSE_BUTTON_LEFT)) {
             it = self.items.iterator();

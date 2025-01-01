@@ -80,7 +80,7 @@ pub const View = struct {
             const pos = syss.comp_man.get_comp(comp.Pos, e) orelse unreachable;
             const view = syss.comp_man.get_comp(comp.View, e) orelse unreachable;
 
-            utils.DrawTextureTint(view.tex.*, pos.pos - main.camera_pos, view.size, pos.rot, view.tint);
+            utils.DrawTextureTint(view.tex.*, pos.pos - main.camera.pos, view.size, pos.rot, view.tint);
             // if (syss.comp_man.get_comp(comp.Size, e)) |cs| {
 
             //     for (cs.cs) |c| {
@@ -88,12 +88,12 @@ pub const View = struct {
             //     }
             // }
             // std.log.debug("entity: {} {} {}", .{e, pos.pos, view.radius});
-            const border_v = m.coordn2srl(m.Vec2 {-1 * conf.screenRatio, -1} - main.camera_pos);
+            const border_v = m.coordn2srl(m.Vec2 {-1 * conf.screenRatio, -1} - main.camera.pos);
             const border_size = m.sizen2srl(.{2 * conf.screenRatio, 2});
             const border = rl.Rectangle {.x = border_v.x, .y = border_v.y, .width = border_size.x, .height = border_size.y };
             rl.DrawRectangleLinesEx(border, 10, rl.WHITE);
             const round_about_size = m.sizen2srl(m.Vec2 {2 * conf.screenRatio, 2} * m.splat(conf.round_about_extra_space));
-            const round_about_v = m.coordn2srl(m.Vec2 {-1 * conf.screenRatio, -1} * m.splat(conf.round_about_extra_space) - main.camera_pos);
+            const round_about_v = m.coordn2srl(m.Vec2 {-1 * conf.screenRatio, -1} * m.splat(conf.round_about_extra_space) - main.camera.pos);
             const round_about = rl.Rectangle {
                 .x = round_about_v.x, 
                 .y = round_about_v.y, 
@@ -126,7 +126,7 @@ pub const Animation = struct {
             const player = syss.comp_man.get_comp(assets.AnimationPlayer, e) orelse unreachable;
 
             if (player.play(dt)) |tex| {
-                utils.DrawTexture(tex.*, pos.pos, player.size, pos.rot);
+                utils.DrawTexture(tex.*, pos.pos - main.camera.pos, player.size, pos.rot);
             } else if (player.should_kill) {
                 syss.add_comp(e, comp.Dead{});
             }
@@ -198,7 +198,7 @@ pub const ShipControl = struct {
                 if (control.thurst_anim) |*anim| {
                     const thurst_pos = pos.pos - m.v2rot(m.up, pos.rot) * m.splat(0.175);
                     const tex = anim.play(dt) orelse unreachable;
-                    utils.DrawTexture(tex.*, thurst_pos - main.camera_pos, null, pos.rot);
+                    utils.DrawTexture(tex.*, thurst_pos - main.camera.pos, null, pos.rot);
                 }
             } else if (state.brake) {
                 vel.vel *= m.splat(1 - control.brake_rate * dt);
