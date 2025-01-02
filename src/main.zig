@@ -43,10 +43,10 @@ pub fn debug_camera(cam: *m.Camera) void {
         cam.vel[0] -= 0.5 * dt;
     }
     if (rl.IsKeyDown(rl.KEY_PAGE_UP)) {
-        cam.zoom += 0.1 * dt;
+        cam.zoom += 0.5 * dt;
     }
     if (rl.IsKeyDown(rl.KEY_PAGE_DOWN)) {
-        cam.zoom -= 0.1 * dt;
+        cam.zoom -= 0.5 * dt;
     }
     if (rl.IsKeyPressed(rl.KEY_L)) {
         cam.vel += m.Vec2 {m.randf(-0.5, 0.5), m.randf(-0.5, 0.5)};
@@ -219,7 +219,7 @@ pub fn main() !void {
     rl.InitWindow(conf.screenw, conf.screenh, "Deep Space Rouge");
     rl.SetTargetFPS(60);
     rl.SetTraceLogLevel(rl.LOG_ERROR);
-    rl.ToggleFullscreen();
+    //rl.ToggleFullscreen();
     defer rl.CloseWindow();
     Assets.load();
     defer Assets.unload();
@@ -276,7 +276,7 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    const first_item_id = invent.append_item(inventory.Item.machine_gun());
+    const first_item_id = invent.append_item(inventory.Item.basic_gun());
     std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
 
 
@@ -305,6 +305,9 @@ pub fn main() !void {
             if (rl.IsKeyPressed(rl.KEY_I)) {
                 pause = !pause;
             }
+            if (rl.IsKeyPressed(rl.KEY_J)) {
+                enemy_spawn.spawn();
+            }
             // if (rl.IsKeyPressed(rl.KEY_P)) {
             //     particle.emit_random();
             // }
@@ -320,7 +323,7 @@ pub fn main() !void {
             //     _ = spawn_asteriod();
             // }
             if (rl.IsKeyPressed(rl.KEY_K)) {
-                _ = enemy.spawn_carrier(comp.Pos {.pos = m.rand_pos() });
+                _ = enemy.spawn_hunter(comp.Pos {.pos = m.rand_pos() });
             }
             syss.update(dt);
             particle.update(dt);

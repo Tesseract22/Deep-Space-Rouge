@@ -572,13 +572,14 @@ pub const Bullet = struct {
                     health.hp -= bullet.dmg;
                 }
 
-                
-                const anim_e = syss.new_entity();
-                syss.add_comp(anim_e, pos.*);
+
                 const particles: usize = @intFromFloat(bullet.dmg / 5);
                 for (0..particles) |_| {
                     particle.emit(pos.pos, 0.2, 2, m.rand_color2(bullet.particle_color, 100));
                 }
+                //const anim_e = syss.new_entity();
+                //syss.add_comp(anim_e, pos.*);
+
                 // if (bullet.area == 0) 
                 //     syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit})
                 // else 
@@ -768,13 +769,17 @@ pub const EnemeySpawner = struct {
         }
         if (self.wave.count() == 0) {
             if (self.t <= 0) {
-                self.spawn_wave();
-                self.t = wave_cd; 
-                self.mature_ct = 0;
+                //self.spawn();
             } else {
                 self.t -= dt;
             }
         }
+    }
+    pub fn spawn(self: *EnemeySpawner) void {
+        self.spawn_wave();
+        self.t = wave_cd; 
+        self.mature_ct = 0;
+
     }
     fn spawn_wave(self: *EnemeySpawner) void {
         main.Annouce("New Wave!", 2);

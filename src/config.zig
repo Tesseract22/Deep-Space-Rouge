@@ -1,4 +1,4 @@
-pub const screenh = 1080;
+pub const screenh = 800;
 //pub const screenRatio = 16.0/9.0;
 pub const screenRatio = 16.0/9.0;
 pub const screenw: comptime_int = @intFromFloat(screenh * screenRatio);
