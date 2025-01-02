@@ -20,7 +20,7 @@ pub fn basic_gun() Weapon {
     return Weapon {
         .fire_rate = 5, 
         .sound = &assets.Sounds.shoot, 
-        .bullet = .{ .dmg = 30, .sound = &assets.Sounds.bullet_hit, .tex = &assets.Texs.bullet, .size = 0.10, },
+        .bullet = .{ .dmg = 30, .sound = &assets.Sounds.bullet_hit, .tex = &assets.Texs.bullet, .size = 0.10, .particle_color = rl.BLUE},
         .effects = comp.Weapon.ShootEffects.init(main.a),
     };
 }
@@ -31,7 +31,7 @@ pub fn machine_gun() Weapon {
         .fire_rate = 10, 
         .bullet_spd = 2,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 10, .sound = &assets.Sounds.bullet_hit, .size = 0.05, .tex = &assets.Texs.bullet_2},
+        .bullet = .{.dmg = 10, .sound = &assets.Sounds.bullet_hit, .size = 0.05, .tex = &assets.Texs.bullet_2, .particle_color = rl.YELLOW},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
     };
@@ -67,7 +67,7 @@ pub fn torpedo() Weapon {
         .fire_rate = 2, 
         .bullet_spd = 0.5,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 90, .sound = &assets.Sounds.bullet_hit, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0},
+        .bullet = .{.dmg = 90, .sound = &assets.Sounds.bullet_hit, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0, .particle_color = rl.GRAY},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
         .base_effect = .{.data = undefined, .shoot_fn = impl.shoot}

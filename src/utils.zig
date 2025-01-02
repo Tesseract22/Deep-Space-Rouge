@@ -78,3 +78,5 @@ pub fn DrawText_static(v: m.Vec2, text: [:0]const u8, font_size: u8, color: rl.C
     const pos = m.coordn2srl_static(v);
     rl.DrawText(text, @intFromFloat(pos.x), @intFromFloat(pos.y), font_size, color);
 }
+
+

@@ -112,7 +112,7 @@ pub const Item = struct {
 pub const bw = 5;
 pub const bh = 5;
 // pub const blk_size = m.srl2sizen(.{ .x = 32 * conf.pixelMul, .y = 32 * conf.pixelMul });
-pub const blk_size = m.Vec2 {0.2, 0.2};
+pub const blk_size = m.Vec2 {m.s2size_static(64), m.s2size_static(64)};
 const Items = std.AutoArrayHashMap(usize, Item);
 
 inventory: [bh][bw]?usize = [_][bw]?usize{[_]?usize{null} ** bw} ** bh,
@@ -140,8 +140,8 @@ pub fn append_item(self: *Self, item: Item) usize {
 
 fn DrawItem(item: Item, pos: m.Vec2) void {
     //  q
-    const spos = m.coordn2srl_static(pos - blk_size / m.splat(2));
-    rl.DrawTextureEx(item.tex.*, spos, 0, conf.pixelMul, rl.WHITE);
+    const spos = pos - blk_size / m.splat(2);
+    rl.DrawTextureEx(item.tex.*, m.coordn2srl_static(spos), 0, conf.pixelMul, rl.WHITE);
 }
 fn checkItemBound(bc: @Vector(2, i32)) bool {
     return bc[0] >= 0 and bc[1] >= 0 and bc[0] < bw and bc[1] < bh;
@@ -200,8 +200,23 @@ pub fn draw(self: *Self) void {
             const yf: f32 = @floatFromInt(y);
             const origin = m.Vec2{ blk_size[0], blk_size[1] } * m.Vec2{ xf - (@as(f32, @floatFromInt(bw)) - 1) / 2, yf - (@as(f32, @floatFromInt(bh)) - 1) / 2 };
             if (self.inventory[x][y]) |id| {
+                const originv = m.coordn2srl_static(origin - blk_size / m.splat(2));
+                rl.DrawRectangleLinesEx(
+                    .{
+                        .x = originv.x,
+                        .y = originv.y,
+                        .width = m.size2s_static(blk_size[0]),
+                        .height = m.size2s_static(blk_size[1]),
+                    },
+                    2,
+                    rl.WHITE
+                );
                 const item = self.items.get(id) orelse unreachable;
                 if (item.pos.?[0] == x and item.pos.?[1] == y) DrawItem(item, origin);
+                // draw the grid around the item
+                //const rect_posv = item.pos.? + (shape_pos orelse continue);
+                //const rect_poss = m.coordn2srl_static(rect_posv);
+
                 // std.log.debug("draw item", .{})
 
             }

@@ -50,7 +50,9 @@ pub fn spawn_hunter(pos: comp.Pos) Entity {
         .fire_rate = 0.5, 
         .bullet_spd = 1,
         .sound = &Assets.Sounds.shoot, 
-        .bullet = .{.dmg = 35, .sound = &Assets.Sounds.bullet_hit, .size = 0.1, .tex = &Assets.Texs.bullet_fire},
+        .bullet = .{
+            .dmg = 35, .sound = &Assets.Sounds.bullet_hit, .size = 0.1, .tex = &Assets.Texs.bullet_fire, .particle_color = rl.ORANGE
+        },
         .effects = comp.Weapon.ShootEffects.init(main.a),
     };
     // weapon_comp.effects.put(comp.Weapon.ShootEffect {.shoot_fn = triple_shot.shoot, .data = undefined}, void{}) catch unreachable;

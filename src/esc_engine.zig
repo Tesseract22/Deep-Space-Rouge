@@ -97,7 +97,7 @@ pub fn ComponentArray(comptime T: type) type {
     return struct {
         const INIT_CAP = 256;
         const Self = @This();
-        // in the implementation of systems, we have this pattern where we `get` a *component, and modify this component directly
+        // In the implementation of systems, we have this pattern where we `get` a *component, and modify this component directly
         // However, simultaneously we are also appending things into the ComponentArray
         // With a data structure that is not pointer-statble (e.g. ArrayList), the previously `get` pointer could become invalid as the underlying list realloc
         // 

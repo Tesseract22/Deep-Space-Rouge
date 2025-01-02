@@ -46,6 +46,9 @@ pub fn coordn2srl_static(v: Vec2) rl.Vector2 {
 pub fn srl2sizen_static(v: rl.Vector2) Vec2 {
     return rl2v2(v) / screenSizef * splat(2);
 }
+pub fn s2size_static(s: usize) f32 {
+    return @as(f32, @floatFromInt(s)) / conf.screenwf * 2 * conf.pixelMul;
+}
 pub fn srl2coord_static(v: rl.Vector2) Vec2 {
     return (rl2v2(v) - Vec2{ (conf.screenwf - conf.screenhf) / 2, 0.0 }) * splat(2) / screenSizef - splat(1.0);
 }
@@ -131,7 +134,7 @@ pub fn randu(min: usize, max: usize) usize {
 pub fn rand_int(comptime T: type, min: T, max: T) T {
     const range = max - min;
     if (range == 0) return max;
-    return randGen.random().int(T) % range + min;
+    return @rem(randGen.random().int(T), range) + min;
 }
 
 pub fn randSign() f32 {
@@ -142,6 +145,13 @@ pub fn rand_pos() Vec2 {
 }
 pub fn rand_color() rl.Color {
     return .{.r = rand_int(u8, 0, 255), .g = rand_int(u8, 0, 255), .b = rand_int(u8, 0, 255), .a = 255};
+}
+pub fn rand_color2(c: rl.Color, nudge: u8) rl.Color {
+    var c2 = c;
+    c2.r -|= rand_int(u8, 0, nudge);
+    c2.g -|= rand_int(u8, 0, nudge);
+    c2.b -|= rand_int(u8, 0, nudge);
+    return c2;
 }
 
 pub fn rand_rot() f32 {

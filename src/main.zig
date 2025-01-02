@@ -219,6 +219,7 @@ pub fn main() !void {
     rl.InitWindow(conf.screenw, conf.screenh, "Deep Space Rouge");
     rl.SetTargetFPS(60);
     rl.SetTraceLogLevel(rl.LOG_ERROR);
+    rl.ToggleFullscreen();
     defer rl.CloseWindow();
     Assets.load();
     defer Assets.unload();
@@ -312,8 +313,9 @@ pub fn main() !void {
             }
             debug_camera(&camera);
             camera_update(&camera);
-            const space_tex = &Assets.Texs.space;
-            rl.DrawTexturePro(space_tex.*, .{ .x = 0, .y = 0, .width = @floatFromInt(space_tex.width), .height = @floatFromInt(space_tex.height) }, .{ .x = 0, .y = 0, .width = conf.screenw, .height = conf.screenh }, .{ .x = 0, .y = 0 }, 0, .{ .r = 0x9f, .g = 0x9f, .b = 0x9f, .a = 0xff });
+            //const space_tex = &Assets.Texs.space;
+            //rl.DrawTexturePro(space_tex.*, .{ .x = 0, .y = 0, .width = @floatFromInt(space_tex.width), .height = @floatFromInt(space_tex.height) }, .{ .x = 0, .y = 0, .width = conf.screenw, .height = conf.screenh }, .{ .x = 0, .y = 0 }, 0, .{ .r = 0x9f, .g = 0x9f, .b = 0x9f, .a = 0xff });
+            rl.ClearBackground(rl.Color {.r = 0x18, .g = 0x18, .b = 0x18, .a = 0xff});
             // if (rl.IsKeyPressed(rl.KEY_J)) {
             //     _ = spawn_asteriod();
             // }

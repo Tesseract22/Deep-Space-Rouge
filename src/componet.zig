@@ -145,6 +145,7 @@ pub const Bullet = struct {
     sound: ?*rl.Sound = null,
     penetrate: u8 = 0,
     area: f32 = 0,
+    particle_color: rl.Color,
     pub const OnhitFn = fn (*Weapon, *Bullet, esc.Entity, usize) void;
     pub const Onhits = std.ArrayList(*const OnhitFn);
 

@@ -201,7 +201,7 @@ pub const ShipControl = struct {
                     const thurst_pos = pos.pos - m.v2rot(m.up, pos.rot) * m.splat(0.175);
                     const tex = anim.play(dt) orelse unreachable;
                     utils.DrawTexture(tex.*, thurst_pos - main.camera.pos, null, pos.rot);
-                    particle.emit(thurst_pos, 0.1, 3, rl.Color {.r = 57, .g = 193, .b = 230, .a = 255});
+                    particle.emit(thurst_pos, 0.1, 3, m.rand_color2(rl.Color {.r = 57, .g = 193, .b = 230, .a = 255}, 50));
                 }
                 
             } else if (state.brake) {
@@ -564,7 +564,7 @@ pub const Bullet = struct {
                 if (bullet.area != 0) {
                     const explode = syss.new_entity();
                     syss.add_comp(explode, pos.*);
-                    syss.add_comp(explode, comp.Bullet {.area = 0, .size = bullet.area, .dmg = bullet.dmg, .tex = null});
+                    syss.add_comp(explode, comp.Bullet {.area = 0, .size = bullet.area, .dmg = bullet.dmg, .tex = null, .particle_color = rl.RED});
                     syss.add_comp(explode, comp.Size.simple(bullet.area));
                     syss.add_comp(explode, comp.CollisionSet1{});
                     syss.add_comp(explode, team.*);
@@ -575,8 +575,9 @@ pub const Bullet = struct {
                 
                 const anim_e = syss.new_entity();
                 syss.add_comp(anim_e, pos.*);
-                for (0..10) |_| {
-                    particle.emit(pos.pos, 0.2, 2, rl.RED);
+                const particles: usize = @intFromFloat(bullet.dmg / 5);
+                for (0..particles) |_| {
+                    particle.emit(pos.pos, 0.2, 2, m.rand_color2(bullet.particle_color, 100));
                 }
                 // if (bullet.area == 0) 
                 //     syss.add_comp(anim_e, assets.AnimationPlayer {.anim = &assets.Anims.bullet_hit})
