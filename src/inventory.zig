@@ -41,6 +41,7 @@ pub const Item = struct {
         //.{ Item.weight, 1 },
         // .{ Item.energy_bullet, 1 },
         .{ Item.triple_shots, 1 },
+        .{ Item.power_shot, 1 },
         .{ Item.basic_gun, 1 },
         .{ Item.turret, 1},
         .{ Item.machine_gun, 1 },
@@ -70,6 +71,14 @@ pub const Item = struct {
             .name = "triple shot", 
             .shape = .{ .{ 0, 0 }, .{ 0, 1 }, .{ 1, 1 }, null, null },
             .type = .{.effect = shoot_effect.triple_shot() }};
+    }
+    pub fn power_shot() Item {
+        return .{
+            .id = new_id(), 
+            .tex = &assets.Texs.power_shot, 
+            .name = "power_shot", 
+            .shape = .{ .{ 0, 0 }, .{ 0, 1 }, .{ 0, 2 }, null, null },
+            .type = .{.effect = shoot_effect.power_shot() }};
     }
     pub fn machine_gun() Item {
         return .{

@@ -277,12 +277,12 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    const first_item_id = invent.append_item(inventory.Item.torpedo());
+    const first_item_id = invent.append_item(inventory.Item.basic_gun());
     std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
 
 
     // _ = invent.append_item(inventory.Item.turret());
-    _ = invent.append_item(inventory.Item.triple_shots());
+    _ = invent.append_item(inventory.Item.power_shot());
 
     invent.cal_item();
 

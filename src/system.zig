@@ -564,7 +564,7 @@ pub const Bullet = struct {
                 if (bullet.area != 0) {
                     const explode = syss.new_entity();
                     syss.add_comp(explode, pos.*);
-                    syss.add_comp(explode, comp.Bullet {.area = 0, .size = bullet.area, .dmg = bullet.dmg, .tex = null, .particle_color = rl.RED});
+                    syss.add_comp(explode, comp.Bullet {.area = 0, .size = bullet.area, .dmg = bullet.dmg, .tex = null, .particle_color = bullet.particle_color});
                     syss.add_comp(explode, comp.Size.simple(bullet.area));
                     syss.add_comp(explode, comp.CollisionSet1{});
                     syss.add_comp(explode, team.*);
@@ -574,8 +574,9 @@ pub const Bullet = struct {
 
 
                 const particles: usize = @intFromFloat(bullet.dmg / 5);
+                const particle_spd = bullet.dmg / 75;
                 for (0..particles) |_| {
-                    particle.emit(pos.pos, 0.2, 2, m.rand_color2(bullet.particle_color, 100));
+                    particle.emit(pos.pos, particle_spd, 2, m.rand_color2(bullet.particle_color, 50));
                 }
                 //const anim_e = syss.new_entity();
                 //syss.add_comp(anim_e, pos.*);

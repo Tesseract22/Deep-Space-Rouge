@@ -13,6 +13,7 @@ const Buff = comp.BuffHolder.Buff;
 const esc = @import("esc_engine.zig");
 const system = @import("system.zig");
 const comp = @import("componet.zig");
+const particle = @import("particle.zig");
 const Entity = esc.Entity;
 const syss = &system.syss;
 
@@ -150,4 +151,40 @@ pub fn water() ShootEffect {
     };
 }
 
-
+const power_shot_impl = struct {
+    pub fn shoot(
+        weapon: *comp.Weapon, effect: *comp.Weapon.ShootEffect, 
+        vel: comp.Vel, pos: comp.Pos, team: comp.Target,
+        idx: isize) void 
+    {
+        const prev = weapon.get_effect(idx - 1) orelse return;
+        const bullet = weapon.bullet;
+        effect.data.counter = (effect.data.counter + 1) % 3;
+        if (effect.data.counter == 0) {
+            weapon.bullet.size *= 1.5;
+            weapon.bullet.dmg *= 1.5;
+            for (0..10) |_| {
+                particle.emit(pos.pos, 0.5, 2, m.rand_color2(rl.BLUE, 50));
+            }
+            //weapon.bullet.penetrate = 5;
+        }
+        prev.shoot_fn(weapon, prev, vel, pos, team, idx - 1);
+        weapon.bullet = bullet;
+    }
+    //pub fn load(w: *Weapon, effect: *ShootEffect) void {
+    //    _ = effect;
+    //    w.fire_rate /= 2;
+    //}
+    //pub fn un_load(w: *Weapon, effect: *ShootEffect) void {
+    //    _ = effect;
+    //    w.fire_rate *= 2;
+    //}
+};
+pub fn power_shot() ShootEffect {
+    return .{
+        .data = .{.counter = 0},
+        .shoot_fn = power_shot_impl.shoot,
+        //.on_load = power_shot_impl.load,
+        //.on_unload = power_shot_impl.un_load,
+    };
+}

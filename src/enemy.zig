@@ -131,6 +131,6 @@ pub fn spawn_carrier(pos: comp.Pos) Entity {
     syss.add_comp(e, comp.Ai {.state = .{ .hunter = .{}}});
     syss.add_comp(e, comp.CollisionSet1{});
     syss.add_comp(e, comp.Target {.team = .enemey});
-    syss.add_comp(e, comp.GemDropper {.value = 40});
+    syss.add_comp(e, comp.GemDropper {.value = 100});
     return e;
 }

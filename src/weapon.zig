@@ -26,14 +26,35 @@ pub fn basic_gun() Weapon {
 }
 
 pub fn machine_gun() Weapon {
+    const impl = struct {
+        pub fn shoot(
+            weapon: *Weapon, effect: *ShootEffect, 
+            vel: Vel, pos: Pos, team: Target,
+            idx: isize) void 
+        {
+            _ = effect;
+            _ = idx;
+            const bullet = sys.syss.new_entity();
+            sys.syss.add_comp(bullet, pos);
+            sys.syss.add_comp(bullet, vel);
+            if (weapon.bullet.tex) |tex| sys.syss.add_comp(bullet, View {.tex = tex, .size = m.splat(weapon.bullet.size)});
+            sys.syss.add_comp(bullet, Size.simple(weapon.bullet.size));
+            var b = weapon.bullet;
+            b.dmg += weapon.fire_rate;
+            sys.syss.add_comp(bullet, b);
+            sys.syss.add_comp(bullet, comp.CollisionSet1 {});
+            sys.syss.add_comp(bullet, team);
+        }
+    };
     return Weapon {
         .cool_down = 0,
         .fire_rate = 10, 
         .bullet_spd = 2,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 10, .sound = &assets.Sounds.bullet_hit_2, .size = 0.05, .tex = &assets.Texs.bullet_2, .particle_color = rl.YELLOW},
+        .bullet = .{.dmg = 0, .sound = &assets.Sounds.bullet_hit_2, .size = 0.05, .tex = &assets.Texs.bullet_2, .particle_color = rl.YELLOW},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
+        .base_effect = .{.shoot_fn = impl.shoot},
     };
 }
 const Vel = comp.Vel;
@@ -68,7 +89,7 @@ pub fn torpedo() Weapon {
         .fire_rate = 2, 
         .bullet_spd = 0.5,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 90, .sound = &assets.Sounds.explode_2, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0, .particle_color = rl.GRAY},
+        .bullet = .{.dmg = 90, .sound = &assets.Sounds.explode_2, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0, .particle_color = rl.WHITE},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
         .base_effect = .{.data = undefined, .shoot_fn = impl.shoot}

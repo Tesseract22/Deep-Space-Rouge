@@ -107,7 +107,7 @@ pub const Weapon = struct {
         shoot_fn: *const fn (*Weapon, *ShootEffect, Vel, Pos, Target, idx: isize) void,
         on_load: *const LoadFn = basic_load_nothing, 
         on_unload: *const LoadFn = basic_load_nothing,
-        data: Data,
+        data: Data = .none,
         const Data = union(enum) {
             counter: usize,
             turret: struct {
