@@ -32,10 +32,11 @@ pub fn emit_random(pos: Vec2) void {
 pub fn emit(pos: Vec2, vel_range: f32, t: f32, color: rl.Color) void {
     const e = new_particle();
     const p = &buffer.slice()[e];
+    const rot =  m.rand_rot();
     p.max_t = t;
     p.t = t;
     p.pos = pos;
-    p.vel = m.Vec2 {m.randf(-vel_range, vel_range), m.randf(-vel_range, vel_range)};
+    p.vel = m.v2rot(m.Vec2 {0, m.randf(0, vel_range) }, rot);
     p.color = color;
     
 }

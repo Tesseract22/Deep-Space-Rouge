@@ -247,8 +247,9 @@ pub fn main() !void {
     var gem_dropper = system.GemDropper {};
     var collect = system.Collector {};
     var buff = system.Buff {};
+    var particle_emit  = system.ParticleEmit {};
 
-
+    syss.register(system.get(&particle_emit, a));
     syss.register(system.get(&input, a));
     syss.register(system.get(&ai, a));
     syss.register(system.get(&ship_control, a));
@@ -276,7 +277,7 @@ pub fn main() !void {
     var invent = inventory.init(a);
     defer invent.deinit();
 
-    const first_item_id = invent.append_item(inventory.Item.basic_gun());
+    const first_item_id = invent.append_item(inventory.Item.torpedo());
     std.debug.assert(invent.try_place_item(.{0, 0}, first_item_id));
 
 

@@ -392,8 +392,16 @@ pub const BuffHolder = struct {
     }
 
 };
+pub const ParticleEmitter = struct {
+    color: rl.Color,
+    color_rand: u8,
+    vel_range: f32 = 0.2,
+    t: f32 = 2,
+    rate: f32 = 1,
+    cool_down: f32 = 0,
+};
 pub const comp_types = [_]type{Pos, Vel, View, ShipControl, Input, Size, Mass, Health, Dead, DeadAnimation, Exp, Collision, assets.AnimationPlayer, Weapon, WeaponHolder, Bullet, 
-    CollisionSet1, CollisionSet2, Target, Ai, GemDropper, Collectible, Collector, BuffHolder};
+    CollisionSet1, CollisionSet2, Target, Ai, GemDropper, Collectible, Collector, BuffHolder, ParticleEmitter};
 pub const event_types = [_]type{Collision};
 pub const Manager = esc.ComponentManager(&comp_types);
 

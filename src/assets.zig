@@ -101,9 +101,11 @@ pub const Sounds = struct {
     pub var shoot:          rl.Sound = undefined;
     pub var shoot2:         rl.Sound = undefined;
     pub var bullet_hit:     rl.Sound = undefined;
+    pub var bullet_hit_2:   rl.Sound = undefined;
     pub var level_up:       rl.Sound = undefined;
     pub var collide:        rl.Sound = undefined;
     pub var explode_1:      rl.Sound = undefined;
+    pub var explode_2:      rl.Sound = undefined;
     pub var hurt:           rl.Sound = undefined;
     pub var select:         rl.Sound = undefined;
     pub fn load() void {

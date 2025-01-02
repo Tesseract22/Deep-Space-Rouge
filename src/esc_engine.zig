@@ -312,7 +312,6 @@ pub fn SystemManager(comptime comp_types: []const type, comptime even_types: []c
         }
 
         pub fn update(self: *Self, dt: f32) void {
-            std.log.debug("entities {}", .{self.fresh_entities.len});
             for (self.systems.items) |sys| {
                 sys.update(dt);
             }

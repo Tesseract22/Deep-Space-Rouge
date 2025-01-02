@@ -769,7 +769,7 @@ pub const EnemeySpawner = struct {
         }
         if (self.wave.count() == 0) {
             if (self.t <= 0) {
-                //self.spawn();
+                self.spawn();
             } else {
                 self.t -= dt;
             }
@@ -817,6 +817,27 @@ pub const EnemeySpawner = struct {
         self.wave.deinit();
     }
 
+};
+
+pub const ParticleEmit = struct {
+    pub const set = .{CompMan.sig_from_types(&.{comp.Pos, comp.ParticleEmitter})};
+    pub fn update(ptr: *anyopaque, entities: []const std.AutoHashMap(Entity, void), dt: f32) void {
+        const self: *@This() = @alignCast(@ptrCast(ptr));
+        _ = self;
+        var it = entities[0].keyIterator();
+        while (it.next()) |entry| {
+            const e = entry.*;
+            const emit = syss.get_comp(e, comp.ParticleEmitter) orelse unreachable;
+            const pos = syss.get_comp(e, comp.Pos) orelse unreachable;
+            if (emit.cool_down > 0) {
+                emit.cool_down -= dt;
+            }
+            while (emit.cool_down <= 0) {
+                emit.cool_down += 1 / emit.rate;
+                particle.emit(pos.pos, emit.vel_range, emit.t, m.rand_color2(emit.color, emit.color_rand));
+            }
+        }
+    }
 };
 
 

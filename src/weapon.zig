@@ -31,7 +31,7 @@ pub fn machine_gun() Weapon {
         .fire_rate = 10, 
         .bullet_spd = 2,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 10, .sound = &assets.Sounds.bullet_hit, .size = 0.05, .tex = &assets.Texs.bullet_2, .particle_color = rl.YELLOW},
+        .bullet = .{.dmg = 10, .sound = &assets.Sounds.bullet_hit_2, .size = 0.05, .tex = &assets.Texs.bullet_2, .particle_color = rl.YELLOW},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
     };
@@ -59,6 +59,7 @@ pub fn torpedo() Weapon {
             sys.syss.add_comp(bullet, comp.CollisionSet1 {});
             sys.syss.add_comp(bullet, team);
             sys.syss.add_comp(bullet, comp.ShipControl {.state = .{.forward = true}, .thurst = 3});
+            sys.syss.add_comp(bullet, comp.ParticleEmitter {.color = rl.WHITE, .color_rand = 50, .rate = 50, .vel_range = 0.1});
         }
     };
     const size = m.measure_tex(assets.Texs.missile);
@@ -67,7 +68,7 @@ pub fn torpedo() Weapon {
         .fire_rate = 2, 
         .bullet_spd = 0.5,
         .sound = &assets.Sounds.shoot2, 
-        .bullet = .{.dmg = 90, .sound = &assets.Sounds.bullet_hit, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0, .particle_color = rl.GRAY},
+        .bullet = .{.dmg = 90, .sound = &assets.Sounds.explode_2, .size = size[0] * 1.2, .tex = &assets.Texs.missile, .area = 0.5, .penetrate = 0, .particle_color = rl.GRAY},
         .effects = comp.Weapon.ShootEffects.init(main.a),
         .spread = 0.1,
         .base_effect = .{.data = undefined, .shoot_fn = impl.shoot}
