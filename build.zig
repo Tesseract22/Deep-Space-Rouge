@@ -13,11 +13,14 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-
+    const bake_rsc_cli_opt = b.option(bool, "bake", "Bake all the resources (textures, animations, sounds) into the executable") orelse false;
+    const options = b.addOptions();
+    options.addOption(bool, "bake", bake_rsc_cli_opt);
     const rl = b.dependency("raylib", .{});
     exe.addIncludePath(rl.path("src"));
     exe.linkLibrary(rl.artifact("raylib"));
     exe.linkLibC();
+    exe.root_module.addOptions("build_config", options);
     b.installArtifact(exe);
 
     // This *creates* a Run step in the build graph, to be executed when another
